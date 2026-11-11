@@ -6,7 +6,6 @@ weekly experiment: build production code, compile tests, run test methods, measu
 import json, os, pathlib, re, shutil, subprocess, sys, xml.etree.ElementTree as ET
 
 IN_COLAB = "google.colab" in sys.modules
-JDK17 = "/usr/lib/jvm/java-17-openjdk-amd64"
 REPO = pathlib.Path(__file__).resolve().parent.parent          # the lecture repository
 WORK = pathlib.Path("/content/lecture" if IN_COLAB else os.path.expanduser("~/lecture-work"))
 LIB = WORK / "lib"
@@ -50,17 +49,31 @@ def sh(cmd, check=True, quiet=False):
     return out
 
 
-def install_java():
-    """Install JDK 17 and Maven on Colab and put JDK 17 first on PATH."""
-    if not IN_COLAB:
+JDK_URL = "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse"
+MAVEN_URL = "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.tar.gz"
+
+
+def install_java(force=False):
+    """Download JDK 17 (Temurin) and Maven 3.9 as archives and unpack them (Colab only).
+    This is faster than apt, which refreshes all package lists and installs many extra packages."""
+    import time
+    t0 = time.time()
+    tools = WORK / "jdk-maven"
+    if not IN_COLAB and not force:
         print("주의: 이 노트북은 Colab 기준입니다. 다른 환경에서는 JDK 17과 Maven이 미리 설치돼 있어야 합니다.")
-    if IN_COLAB and not (os.path.isdir(JDK17) and shutil.which("mvn")):
-        sh("apt-get update -qq && apt-get install -y -qq openjdk-17-jdk-headless maven > /dev/null", quiet=True)
-    if os.path.isdir(JDK17):
-        os.environ["JAVA_HOME"] = JDK17
-        os.environ["PATH"] = f"{JDK17}/bin:" + os.environ["PATH"]
+    elif not (tools / "jdk").exists() or not (tools / "maven").exists():
+        tools.mkdir(parents=True, exist_ok=True)
+        for name, url in (("jdk", JDK_URL), ("maven", MAVEN_URL)):
+            d = tools / name
+            shutil.rmtree(d, ignore_errors=True)
+            d.mkdir()
+            sh(f"curl -sSfL '{url}' | tar xz -C {d} --strip-components=1", quiet=True)
+    if (tools / "jdk").exists():
+        os.environ["JAVA_HOME"] = str(tools / "jdk")
+        os.environ["PATH"] = f"{tools / 'jdk'}/bin:{tools / 'maven'}/bin:" + os.environ["PATH"]
     print(sh("java -version 2>&1 | grep -i 'version'", quiet=True))
-    print(sh("mvn -v 2>&1 | head -1", quiet=True))
+    print(sh("mvn -v 2>&1 | grep -i 'apache maven'", quiet=True))
+    print(f"({time.time() - t0:.0f}초)")
 
 
 def setup_tools():
