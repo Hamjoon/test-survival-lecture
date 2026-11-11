@@ -14,7 +14,7 @@ Usage (after building the project at t with `mvn -DskipTests test-compile`):
 """
 import json, pathlib, re, subprocess, sys, xml.etree.ElementTree as ET
 
-TARGETS = ["com/networknt/schema/AnyOfValidator.java", "com/networknt/schema/OneOfValidator.java"]
+TARGETS = ["com/networknt/schema/ValidationMessage.java", "com/networknt/schema/SpecVersionDetector.java"]
 ANNOTATIONS = ("@Test", "@ParameterizedTest", "@TestFactory", "@RepeatedTest")
 METHOD = re.compile(r"[\w<>\[\]?,\s]+\s(\w+)\s*\(")
 
@@ -61,7 +61,7 @@ def main(repo, cp_file, jar_dir, out):
         ex.unlink(missing_ok=True)
         r = subprocess.run(["java", f"-javaagent:{agent}=destfile={ex}", "-cp", cp, "MethodRunner", spec],
                            cwd=repo, capture_output=True, text=True, timeout=600)
-        out_lines = [l for l in r.stdout.splitlines() if "\t" in l]
+        out_lines = [l for l in r.stdout.splitlines() if l.split("\t")[0] in ("pass", "fail", "skip", "absent")]
         status = out_lines[-1].split("\t")[0] if out_lines else "error"
         hits = {}
         if ex.exists():

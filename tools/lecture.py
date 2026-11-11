@@ -17,7 +17,7 @@ JSV = WORK / "json-schema-validator"
 JSV_URL = "https://github.com/networknt/json-schema-validator.git"
 T_TAG = "1.1.0"
 PKG_DIR = "com/networknt/schema"
-TARGETS = ["AnyOfValidator", "OneOfValidator"]
+TARGETS = ["ValidationMessage", "SpecVersionDetector"]
 
 LAUNCHER = JACOCO_AGENT = JACOCO_CLI = None
 TEST_LIBS = []
@@ -103,9 +103,9 @@ def run_methods(classpath, methods, jacoco_exec=None, cwd=None):
     r = subprocess.run(cmd, cwd=cwd or JSV, text=True, capture_output=True, timeout=1800)
     res = {}
     for line in r.stdout.splitlines():
-        if "\t" in line:
-            st, m = line.split("\t")
-            res[m] = st
+        parts = line.split("\t")
+        if len(parts) == 2 and parts[0] in ("pass", "fail", "skip", "absent"):
+            res[parts[1]] = parts[0]          # other lines are output printed by the tests
     return res
 
 
@@ -184,7 +184,8 @@ def compile_dev_tests(prod_classes, classpath, out_dir):
     src = out_dir.parent / (out_dir.name + "-src")
     for d in (out_dir, src):
         shutil.rmtree(d, ignore_errors=True)
-    shutil.copytree(JSV / "src/test/resources", out_dir)
+    shutil.copytree(JSV / "src/test/resources", out_dir)            # test resources, as in pom.xml
+    shutil.copytree(JSV / "src/test/suite", out_dir, dirs_exist_ok=True)
     shutil.copytree(JSV / "src/test/java", src)
     dropped = set()
     while True:
