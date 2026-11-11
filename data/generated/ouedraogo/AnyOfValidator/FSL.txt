@@ -1,0 +1,110 @@
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.Set;
+
+import static org.junit.Assert.*;
+
+public class AnyOfValidatorTest {
+
+    private ObjectMapper objectMapper;
+    private SchemaValidatorsConfig config;
+    private ValidationContext validationContext;
+
+    @Before
+    public void setUp() {
+        objectMapper = new ObjectMapper();
+        config = new SchemaValidatorsConfig();
+        JsonMetaSchema metaSchema = JsonMetaSchema.getDraft6();
+        validationContext = new ValidationContext(metaSchema, config);
+    }
+
+    @Test
+    public void testConstructorAndPreload() throws Exception {
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}, {\"type\": \"integer\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+        
+        // Test preloadJsonSchema doesn't throw exceptions
+        validator.preloadJsonSchema();
+        assertNotNull(validator);
+    }
+
+    @Test
+    public void testConstructorWithOpenAPI3Discriminator() throws Exception {
+        config.setOpenAPI3StyleDiscriminators(true);
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}, {\"type\": \"integer\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+        
+        assertNotNull(validator);
+    }
+
+    @Test
+    public void testValidateSuccess() throws Exception {
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}, {\"type\": \"integer\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+
+        JsonNode node = objectMapper.valueToTree("hello");
+        JsonNode rootNode = node;
+        ExecutionContext executionContext = validationContext.newExecutionContext();
+        CollectorContext collectorContext = executionContext.getCollectorContext();
+        ValidatorState state = new ValidatorState();
+        collectorContext.set(ValidatorState.VALIDATOR_STATE_KEY, state);
+
+        Set<ValidationMessage> errors = validator.validate(executionContext, node, rootNode, "#");
+        assertTrue(errors.isEmpty());
+    }
+
+    @Test
+    public void testValidateFailure() throws Exception {
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}, {\"type\": \"integer\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+
+        JsonNode node = objectMapper.valueToTree(true); // boolean, matches neither string nor integer
+        JsonNode rootNode = node;
+        ExecutionContext executionContext = validationContext.newExecutionContext();
+        CollectorContext collectorContext = executionContext.getCollectorContext();
+        ValidatorState state = new ValidatorState();
+        collectorContext.set(ValidatorState.VALIDATOR_STATE_KEY, state);
+
+        Set<ValidationMessage> errors = validator.validate(executionContext, node, rootNode, "#");
+        assertFalse(errors.isEmpty());
+    }
+
+    @Test
+    public void testWalkWithShouldValidateSchemaTrue() throws Exception {
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+
+        JsonNode node = objectMapper.valueToTree("test");
+        JsonNode rootNode = node;
+        ExecutionContext executionContext = validationContext.newExecutionContext();
+        CollectorContext collectorContext = executionContext.getCollectorContext();
+        ValidatorState state = new ValidatorState();
+        collectorContext.set(ValidatorState.VALIDATOR_STATE_KEY, state);
+
+        Set<ValidationMessage> errors = validator.walk(executionContext, node, rootNode, "#", true);
+        assertTrue(errors.isEmpty());
+    }
+
+    @Test
+    public void testWalkWithShouldValidateSchemaFalse() throws Exception {
+        JsonNode schemaNode = objectMapper.readTree("[{\"type\": \"string\"}]");
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, null, validationContext);
+
+        JsonNode node = objectMapper.valueToTree(123); // Would fail validation, but walk with false should skip
+        JsonNode rootNode = node;
+        ExecutionContext executionContext = validationContext.newExecutionContext();
+        CollectorContext collectorContext = executionContext.getCollectorContext();
+        ValidatorState state = new ValidatorState();
+        collectorContext.set(ValidatorState.VALIDATOR_STATE_KEY, state);
+
+        Set<ValidationMessage> errors = validator.walk(executionContext, node, rootNode, "#", false);
+        assertTrue(errors.isEmpty());
+    }
+}
+###Test END##

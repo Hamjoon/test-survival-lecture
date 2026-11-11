@@ -376,8 +376,13 @@ def check_generated_at_t(group, t_cp):
         methods = test_methods(code)
         row["메서드"] = len(methods)
         if not ok:
-            first = next((l for l in err.splitlines() if "error:" in l), "")
-            row["컴파일 오류(첫 줄)"] = first.split("error:", 1)[-1].strip()[:80]
+            lines = err.splitlines()
+            i = next((k for k, l in enumerate(lines) if "error:" in l), None)
+            msg = lines[i].split("error:", 1)[-1].strip() if i is not None else ""
+            if i is not None and msg == "cannot find symbol":
+                sym = next((l.split("symbol:", 1)[1].strip() for l in lines[i + 1:i + 4] if "symbol:" in l), "")
+                msg = f"{msg}: {sym}"
+            row["컴파일 오류(첫 줄)"] = msg[:90]
             continue
         res = run_methods([d / "classes", JSV / "target/classes"] + t_cp + TEST_LIBS,
                           [f"{fqcn}#{m}" for m in methods])

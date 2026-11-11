@@ -1,0 +1,213 @@
+### 1. Extract and List all Public Methods including their Signatures
+
+Based on the `OneOfValidator` class source code, here are the public methods and constructors:
+
+1. **Constructor**:
+   `public OneOfValidator(String schemaPath, JsonNode schemaNode, JsonSchema parentSchema, ValidationContext validationContext)`
+2. **Method**:
+   `public Set<ValidationMessage> validate(ExecutionContext executionContext, JsonNode node, JsonNode rootNode, String at)`
+3. **Method**:
+   `public Set<ValidationMessage> walk(ExecutionContext executionContext, JsonNode node, JsonNode rootNode, String at, boolean shouldValidateSchema)`
+4. **Method**:
+   `public void preloadJsonSchema()`
+
+---
+
+### 2. Basic JUnit 4 Test Cases for Each Method
+
+- **Constructor Test**: Verifies that the `OneOfValidator` instance is correctly created and internal schemas are parsed from the schema node.
+- **`validate` Test**: Verifies basic validation behavior when exactly one sub-schema matches.
+- **`walk` Test**: Verifies that walking the schema functions correctly with and without validation enabled.
+- **`preloadJsonSchema` Test**: Verifies that preloading invokes initialization on child schemas without error.
+
+---
+
+### 3. Potential Edge Cases and Exception Handling Scenarios
+
+1. **Zero Valid Schemas (Validation Failure)**: When the input node matches none of the sub-schemas, `OneOfValidator` should return validation error messages.
+2. **Multiple Valid Schemas (Validation Failure)**: When the input node matches more than one sub-schemas (e.g., 2 or more), it should fail and report an error since `oneOf` strictly requires *exactly one*.
+3. **Fail-Fast Exception Handling**: When `fail-fast` is enabled and validation fails (0 or >1 valid schemas), a `JsonSchemaException` should be thrown.
+4. **Walk Execution with `shouldValidateSchema = true`**: Triggers validation pathway inside walk.
+5. **Walk Execution with `shouldValidateSchema = false`**: Triggers pure walking pathway without validation.
+
+---
+
+### 4. JUnit 4 Test Cases for Edge Cases and Exceptions
+
+- `testValidateZeroValidSchemas`: Tests failure when no sub-schemas match.
+- `testValidateMultipleValidSchemas`: Tests failure when multiple sub-schemas match.
+- `testValidateFailFastException`: Tests that `JsonSchemaException` is thrown when fail-fast mode is active and validation fails.
+- `testWalkWithoutValidation`: Tests the walk method when `shouldValidateSchema` is set to `false`.
+
+---
+
+### 5. Complete JUnit Test File (`OneOfValidatorTest.java`)
+
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.Set;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+
+public class OneOfValidatorTest {
+
+    private ObjectMapper objectMapper;
+    private ValidationContext validationContext;
+    private ExecutionContext executionContext;
+    private CollectorContext collectorContext;
+    private ValidatorState validatorState;
+
+    @Before
+    public void setUp() {
+        objectMapper = new ObjectMapper();
+        validationContext = mock(ValidationContext.class);
+        executionContext = mock(ExecutionContext.class);
+        collectorContext = mock(CollectorContext.class);
+        validatorState = new ValidatorState();
+
+        when(executionContext.getCollectorContext()).thenReturn(collectorContext);
+        when(collectorContext.enterDynamicScope()).thenReturn(mock(CollectorContext.Scope.class));
+        when(collectorContext.get(ValidatorState.VALIDATOR_STATE_KEY)).thenReturn(validatorState);
+    }
+
+    @Test
+    public void testConstructorAndPreloadJsonSchema() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode().put("type", "string"))
+                .add(objectMapper.createObjectNode().put("type", "integer"));
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        JsonSchema childSchema2 = mock(JsonSchema.class);
+
+        when(validationContext.newSchema(eq("#/0"), any(JsonNode.get(0).getClass()), any())).thenReturn(childSchema1);
+        when(validationContext.newSchema(eq("#/1"), any(JsonNode.get(1).getClass()), any())).thenReturn(childSchema2);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        
+        validator.preloadJsonSchema();
+
+        verify(childSchema1, times(1)).initializeValidators();
+        verify(childSchema2, times(1)).initializeValidators();
+    }
+
+    @Test
+    public void testValidateSuccess() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode())
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        JsonSchema childSchema2 = mock(JsonSchema.class);
+
+        // Exactly one schema matches (returns empty errors)
+        when(childSchema1.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.emptySet());
+        when(childSchema2.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.singleton(mock(ValidationMessage.class)));
+
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+        when(validationContext.newSchema(eq("#/1"), any(), any())).thenReturn(childSchema2);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        JsonNode node = objectMapper.textNode("test");
+
+        Set<ValidationMessage> errors = validator.validate(executionContext, node, node, "#");
+        assertTrue("Expected validation to succeed with exactly one valid schema", errors.isEmpty());
+    }
+
+    @Test
+    public void testValidateZeroValidSchemas() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        ValidationMessage mockError = mock(ValidationMessage.class);
+
+        // Zero schemas match
+        when(childSchema1.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.singleton(mockError));
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        JsonNode node = objectMapper.textNode("test");
+
+        Set<ValidationMessage> errors = validator.validate(executionContext, node, node, "#");
+        assertFalse("Expected validation errors when zero schemas match", errors.isEmpty());
+    }
+
+    @Test
+    public void testValidateMultipleValidSchemas() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode())
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        JsonSchema childSchema2 = mock(JsonSchema.class);
+
+        // Multiple schemas match (both return empty errors)
+        when(childSchema1.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.emptySet());
+        when(childSchema2.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.emptySet());
+
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+        when(validationContext.newSchema(eq("#/1"), any(), any())).thenReturn(childSchema2);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        JsonNode node = objectMapper.textNode("test");
+
+        Set<ValidationMessage> errors = validator.validate(executionContext, node, node, "#");
+        assertFalse("Expected validation errors when multiple schemas match", errors.isEmpty());
+    }
+
+    @Test(expected = JsonSchemaException.class)
+    public void testValidateFailFastException() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        when(childSchema1.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.singleton(mock(ValidationMessage.class)));
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        validator.failFast = true; // Enable failFast
+        JsonNode node = objectMapper.textNode("test");
+
+        validator.validate(executionContext, node, node, "#");
+    }
+
+    @Test
+    public void testWalkWithValidation() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        when(childSchema1.validate(any(), any(), any(), any())).thenReturn(java.util.Collections.emptySet());
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        JsonNode node = objectMapper.textNode("test");
+
+        Set<ValidationMessage> errors = validator.walk(executionContext, node, node, "#", true);
+        assertNotNull(errors);
+    }
+
+    @Test
+    public void testWalkWithoutValidation() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode());
+
+        JsonSchema childSchema1 = mock(JsonSchema.class);
+        when(validationContext.newSchema(eq("#/0"), any(), any())).thenReturn(childSchema1);
+
+        OneOfValidator validator = new OneOfValidator("#", schemaNode, null, validationContext);
+        JsonNode node = objectMapper.textNode("test");
+
+        Set<ValidationMessage> errors = validator.walk(executionContext, node, node, "#", false);
+        verify(childSchema1, times(1)).walk(eq(executionContext), eq(node), eq(node), eq("#"), eq(false));
+        assertTrue(errors.isEmpty());
+    }
+}
+###Test END##

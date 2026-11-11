@@ -1,0 +1,271 @@
+*(Three software testing experts—**Alice** (Specialist in JSON Schema & Mocking), **Bob** (JUnit 4 Framework & State Management Expert), and **Charlie** (Edge Case & Integration Testing Guru)—step into the room. They review the `OneOfValidator` class. They realize there are two primary public methods to test: the constructor `OneOfValidator(...)`, and the core logic methods `validate(...)`, `walk(...)`, and `preloadJsonSchema()` which rely heavily on validator context execution.)*
+
+**Alice:** Let's coordinate our strategy. The class has a constructor and three main functional overrides: `validate`, `walk`, and `preloadJsonSchema`. We need to propose one test case per method/responsibility in rounds, make sure our assertions match JUnit 4, and collaborate.
+
+**Bob:** Sounds good. Let's start with the constructor. 
+
+---
+
+### Round 1: Constructor Testing
+
+**Alice:** For the constructor, I propose a test that initializes the `OneOfValidator` with a schema node containing multiple sub-schemas and verifies that the internal schemas list is correctly populated via `validationContext`.
+
+```java
+@Test
+public void testConstructorInitialization() {
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode schemaNode = mapper.createArrayNode()
+            .add(mapper.createObjectNode().put("type", "string"))
+            .add(mapper.createObjectNode().put("type", "integer"));
+            
+    JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+    JsonSchema parentSchema = factory.getSchema(schemaNode);
+    ValidationContext context = parentSchema.getValidationContext();
+    
+    OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+    assertNotNull(validator);
+}
+```
+
+**Charlie:** That looks solid, Alice. It successfully exercises the array parsing loop in the constructor.
+
+---
+
+### Round 2: `validate` Method Testing
+
+**Bob:** For the `validate` method, we need a test case representing the classic success scenario: exactly *one* sub-schema matches the node.
+
+```java
+@Test
+public void testValidateSuccess() {
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode schemaNode = mapper.createArrayNode()
+            .add(mapper.createObjectNode().put("type", "string"))
+            .add(mapper.createObjectNode().put("type", "integer"));
+            
+    JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+    JsonSchema parentSchema = factory.getSchema(schemaNode);
+    ValidationContext context = parentSchema.getValidationContext();
+    
+    OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+    ExecutionContext execContext = new ExecutionContext(context);
+    execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+    JsonNode node = mapper.getNodeFactory().textNode("hello");
+    Set<ValidationMessage> messages = validator.validate(execContext, node, schemaNode, "#");
+    
+    assertTrue(messages.isEmpty());
+}
+```
+
+**Alice:** Excellent. That covers the `numberOfValidSchema == 1` success path.
+
+---
+
+### Round 3: `walk` Method Testing
+
+**Charlie:** For the `walk` method, we should test when `shouldValidateSchema` is set to `false`, ensuring it delegates down to the sub-schemas' `walk` methods without throwing validation exceptions.
+
+```java
+@Test
+public void testWalkWithoutValidation() {
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode schemaNode = mapper.createArrayNode()
+            .add(mapper.createObjectNode().put("type", "string"));
+            
+    JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+    JsonSchema parentSchema = factory.getSchema(schemaNode);
+    ValidationContext context = parentSchema.getValidationContext();
+    
+    OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+    ExecutionContext execContext = new ExecutionContext(context);
+    execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+    JsonNode node = mapper.getNodeFactory().textNode("test");
+    Set<ValidationMessage> messages = validator.walk(execContext, node, schemaNode, "#", false);
+    
+    assertTrue(messages.isEmpty());
+}
+```
+
+**Bob:** Beautiful. That covers the `else` branch of the `walk` method cleanly.
+
+---
+
+### Round 4: `preloadJsonSchema` Method Testing
+
+**Alice:** For `preloadJsonSchema`, we need to ensure it initializes all child validators properly without errors.
+
+```java
+@Test
+public void testPreloadJsonSchema() {
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode schemaNode = mapper.createArrayNode()
+            .add(mapper.createObjectNode().put("type", "string"));
+            
+    JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+    JsonSchema parentSchema = factory.getSchema(schemaNode);
+    ValidationContext context = parentSchema.getValidationContext();
+    
+    OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+    
+    // Should execute without throwing any exceptions
+    validator.preloadJsonSchema();
+    assertTrue(true);
+}
+```
+
+---
+
+### Final Compilation & Complete Test File Construction
+
+**Bob:** We are all in agreement. Let's assemble the complete, comprehensive JUnit 4 test suite incorporating standard, edge, and error cases (like zero matching schemas or multiple matching schemas) to guarantee complete test coverage.
+
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Test;
+
+import java.util.Set;
+
+import static org.junit.Assert.*;
+
+public class OneOfValidatorTest {
+
+    @Test
+    public void testConstructorInitialization() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"))
+                .add(mapper.createObjectNode().put("type", "integer"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        assertNotNull(validator);
+    }
+
+    @Test
+    public void testValidateSuccess() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"))
+                .add(mapper.createObjectNode().put("type", "integer"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        ExecutionContext execContext = new ExecutionContext(context);
+        execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+        JsonNode node = mapper.getNodeFactory().textNode("hello");
+        Set<ValidationMessage> messages = validator.validate(execContext, node, schemaNode, "#");
+        
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    public void testValidateFailureZeroMatches() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"))
+                .add(mapper.createObjectNode().put("type", "integer"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        ExecutionContext execContext = new ExecutionContext(context);
+        execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+        JsonNode node = mapper.getNodeFactory().booleanNode(true);
+        Set<ValidationMessage> messages = validator.validate(execContext, node, schemaNode, "#");
+        
+        assertFalse(messages.isEmpty());
+    }
+
+    @Test
+    public void testValidateFailureMultipleMatches() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "integer"))
+                .add(mapper.createObjectNode().put("type", "integer").put("minimum", 0));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        ExecutionContext execContext = new ExecutionContext(context);
+        execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+        JsonNode node = mapper.getNodeFactory().numberNode(5);
+        Set<ValidationMessage> messages = validator.validate(execContext, node, schemaNode, "#");
+        
+        assertFalse(messages.isEmpty());
+    }
+
+    @Test
+    public void testWalkWithoutValidation() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        ExecutionContext execContext = new ExecutionContext(context);
+        execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+        JsonNode node = mapper.getNodeFactory().textNode("test");
+        Set<ValidationMessage> messages = validator.walk(execContext, node, schemaNode, "#", false);
+        
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    public void testWalkWithValidation() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        ExecutionContext execContext = new ExecutionContext(context);
+        execContext.getCollectorContext().set(ValidatorState.VALIDATOR_STATE_KEY, new ValidatorState());
+
+        JsonNode node = mapper.getNodeFactory().textNode("test");
+        Set<ValidationMessage> messages = validator.walk(execContext, node, schemaNode, "#", true);
+        
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    public void testPreloadJsonSchema() {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode schemaNode = mapper.createArrayNode()
+                .add(mapper.createObjectNode().put("type", "string"));
+                
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+        JsonSchema parentSchema = factory.getSchema(schemaNode);
+        ValidationContext context = parentSchema.getValidationContext();
+        
+        OneOfValidator validator = new OneOfValidator("#/oneOf", schemaNode, parentSchema, context);
+        
+        validator.preloadJsonSchema();
+        assertTrue(true);
+    }
+}
+###Test END##

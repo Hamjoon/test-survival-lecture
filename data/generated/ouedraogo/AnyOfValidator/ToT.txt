@@ -1,0 +1,142 @@
+**Expert 1 (Framework & Mocking Specialist):** Hello everyone. Looking at the `AnyOfValidator` class, we have two primary execution methods to test: `validate` and `walk`, alongside lifecycle methods like `preloadJsonSchema` and the constructor. For our first method proposal, let's address the constructor initialization and basic structure. I will propose a test case that initializes the `AnyOfValidator` with standard schema nodes and verifies its proper instantiation.
+
+**Expert 2 (JSON Schema Edge Case Specialist):** Agreed, Expert 1. For the `validate` method, we need a robust test case covering the standard JSON Schema `anyOf` behavior where at least one subschema passes validation successfully, returning an empty set of errors.
+
+**Expert 3 (Assertion & Coverage Specialist):** That sounds solid. For the `walk` method, we should test the path where `shouldValidateSchema` is set to `false`, ensuring it delegates the walk down to its child schemas without triggering full validation. 
+
+Let's combine our insights, review the mocking context required for `ValidationContext`, `ExecutionContext`, and `JsonNode`, and build the comprehensive JUnit 4 test suite.
+
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+
+public class AnyOfValidatorTest {
+
+    private ObjectMapper objectMapper;
+    private ValidationContext validationContext;
+    private ExecutionContext executionContext;
+    private CollectorContext collectorContext;
+    private ValidatorState validatorState;
+    private SchemaValidatorsConfig config;
+
+    @Before
+    public void setUp() {
+        objectMapper = new ObjectMapper();
+        validationContext = mock(ValidationContext.class);
+        executionContext = mock(ExecutionContext.class);
+        collectorContext = mock(CollectorContext.class);
+        validatorState = mock(ValidatorState.class);
+        config = mock(SchemaValidatorsConfig.class);
+
+        when(executionContext.getCollectorContext()).thenReturn(collectorContext);
+        when(collectorContext.get(ValidatorState.VALIDATOR_STATE_KEY)).thenReturn(validatorState);
+        when(validationContext.getConfig()).thenReturn(config);
+        when(config.isOpenAPI3StyleDiscriminators()).thenReturn(false);
+        when(collectorContext.enterDynamicScope()).thenReturn(mock(CollectorContext.Scope.class));
+    }
+
+    @Test
+    public void testConstructorInitialization() {
+        JsonNode schemaNode = objectMapper.createArrayNode().add(objectMapper.createObjectNode());
+        JsonSchema parentSchema = mock(JsonSchema.class);
+        
+        when(validationContext.newSchema(anyString(), any(JsonNode.class), eq(parentSchema)))
+                .thenReturn(mock(JsonSchema.class));
+
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, parentSchema, validationContext);
+        assertNotNull(validator);
+    }
+
+    @Test
+    public void testValidateSuccessWhenOneSubschemaMatches() {
+        JsonNode schemaNode = objectMapper.createArrayNode()
+                .add(objectMapper.createObjectNode())
+                .add(objectMapper.createObjectNode());
+        JsonSchema parentSchema = mock(JsonSchema.class);
+        JsonSchema subSchema1 = mock(JsonSchema.class);
+        JsonSchema subSchema2 = mock(JsonSchema.class);
+
+        when(validationContext.newSchema(eq("#/anyOf/0"), any(JsonNode.class), eq(parentSchema))).thenReturn(subSchema1);
+        when(validationContext.newSchema(eq("#/anyOf/1"), any(JsonNode.class), eq(parentSchema))).thenReturn(subSchema2);
+
+        // Subschema 1 fails, Subschema 2 succeeds
+        Set<ValidationMessage> errors1 = new HashSet<>();
+        errors1.add(mock(ValidationMessage.class));
+        when(subSchema1.validate(any(), any(), any(), any())).thenReturn(errors1);
+        when(subSchema2.validate(any(), any(), any(), any())).thenReturn(Collections.emptySet());
+
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, parentSchema, validationContext);
+        JsonNode node = objectMapper.createObjectNode();
+        
+        Set<ValidationMessage> resultErrors = validator.validate(executionContext, node, node, "#");
+        
+        assertTrue("Validation should pass if any subschema matches", resultErrors.isEmpty());
+    }
+
+    @Test
+    public void testValidateFailureWhenAllSubschemasFail() {
+        JsonNode schemaNode = objectMapper.createArrayNode().add(objectMapper.createObjectNode());
+        JsonSchema parentSchema = mock(JsonSchema.class);
+        JsonSchema subSchema = mock(JsonSchema.class);
+
+        when(validationContext.newSchema(eq("#/anyOf/0"), any(JsonNode.class), eq(parentSchema))).thenReturn(subSchema);
+
+        Set<ValidationMessage> errors = new HashSet<>();
+        ValidationMessage msg = mock(ValidationMessage.class);
+        when(msg.getType()).thenReturn("type");
+        errors.add(msg);
+        
+        when(subSchema.validate(any(), any(), any(), any())).thenReturn(errors);
+
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, parentSchema, validationContext);
+        JsonNode node = objectMapper.createObjectNode();
+
+        Set<ValidationMessage> resultErrors = validator.validate(executionContext, node, node, "#");
+        
+        assertFalse("Validation should fail if no subschemas match", resultErrors.isEmpty());
+    }
+
+    @Test
+    public void testWalkWithShouldValidateSchemaFalse() {
+        JsonNode schemaNode = objectMapper.createArrayNode().add(objectMapper.createObjectNode());
+        JsonSchema parentSchema = mock(JsonSchema.class);
+        JsonSchema subSchema = mock(JsonSchema.class);
+
+        when(validationContext.newSchema(anyString(), any(JsonNode.class), eq(parentSchema))).thenReturn(subSchema);
+
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, parentSchema, validationContext);
+        JsonNode node = objectMapper.createObjectNode();
+
+        Set<ValidationMessage> resultErrors = validator.walk(executionContext, node, node, "#", false);
+
+        verify(subSchema, times(1)).walk(eq(executionContext), eq(node), eq(node), eq("#"), eq(false));
+        assertTrue(resultErrors.isEmpty());
+    }
+
+    @Test
+    public void testPreloadJsonSchema() {
+        JsonNode schemaNode = objectMapper.createArrayNode().add(objectMapper.createObjectNode());
+        JsonSchema parentSchema = mock(JsonSchema.class);
+        JsonSchema subSchema = mock(JsonSchema.class);
+
+        when(validationContext.newSchema(anyString(), any(JsonNode.class), eq(parentSchema))).thenReturn(subSchema);
+
+        AnyOfValidator validator = new AnyOfValidator("#/anyOf", schemaNode, parentSchema, validationContext);
+        validator.preloadJsonSchema();
+
+        verify(subSchema, times(1)).initialize();
+    }
+}
+###Test END##
