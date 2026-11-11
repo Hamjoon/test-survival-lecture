@@ -213,3 +213,188 @@ def target_coverage(jacoco_exec, classes_dir, src_dir):
 def print_coverage(cov):
     for c, (hit, total) in cov.items():
         print(f"  {c}: 실행 가능한 줄 {total}개 중 {hit}개 ({hit / total:.1%})")
+
+
+# ------------------------------------------------------------------ LLM generation (shared)
+GEN = WORK / "generated"
+_last_call = [0.0]
+
+
+def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0):
+    """One Gemini call. Waits between calls to stay under the free-tier per-minute limit and
+    retries when the limit is hit (HTTP 429)."""
+    import time
+    from google.genai import types, errors
+    for attempt in range(4):
+        wait = _last_call[0] + min_interval - time.time()
+        if wait > 0:
+            time.sleep(wait)
+        _last_call[0] = time.time()
+        try:
+            r = client.models.generate_content(
+                model=model, contents=prompt,
+                config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens))
+            return r.text or ""
+        except errors.ClientError as e:
+            if getattr(e, "code", None) != 429 or attempt == 3:
+                raise
+            print(f"    호출 한도에 걸려 {30 * (attempt + 1)}초 기다립니다")
+            time.sleep(30 * (attempt + 1))
+
+
+def save_responses(group):
+    """Zip the raw responses of a group (to download from Colab)."""
+    zip_path = shutil.make_archive(str(WORK / f"{group}-responses"), "zip", GEN / group)
+    if IN_COLAB:
+        from google.colab import files
+        files.download(zip_path)
+    print(zip_path)
+
+
+# ------------------------------------------------------------------ Ouedraogo
+TECHNIQUES = ["ZSL", "FSL", "CoT", "ToT", "GToT"]
+PROMPTS = REPO / "data/prompts/ouedraogo"
+
+
+def render_ouedraogo(technique, class_name, source):
+    """Fill one of the five prompt templates with the class name and its full source."""
+    values = {"{class_name}": class_name, "{source_code}": source,
+              "{fewshot_example}": (PROMPTS / "fewshot_example.txt").read_text()}
+    template = (PROMPTS / f"{technique}.txt").read_text()
+    return "".join(values.get(p, p) for p in re.split(r"(\{class_name\}|\{source_code\}|\{fewshot_example\})", template))
+
+
+def generate_ouedraogo(client, model, use_saved=False):
+    """Ask the model for one test file per (target class, technique): 2 x 5 = 10 calls.
+    Responses are saved under GEN/ouedraogo/<class>/<technique>.txt. Existing responses are kept,
+    so the cell can be re-run after an interruption. use_saved=True copies the saved responses
+    from the lecture repository instead of calling the model."""
+    out = GEN / "ouedraogo"
+    if use_saved:
+        shutil.copytree(REPO / "data/generated/ouedraogo", out, dirs_exist_ok=True)
+        print("저장된 응답을 불러왔습니다:", out)
+        return
+    for c in TARGETS:
+        source = (JSV / "src/main/java" / PKG_DIR / f"{c}.java").read_text()
+        for t in TECHNIQUES:
+            path = out / c / f"{t}.txt"
+            if path.exists():
+                print(f"  {c} {t}: 이미 있음")
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            text = call_llm(client, model, render_ouedraogo(t, c, source))
+            path.write_text(text)
+            print(f"  {c} {t}: 응답 {len(text):,}자")
+
+
+# ------------------------------------------------------------------ checking generated tests at t
+MARKER = re.compile(r"^\s*(?:\*\*|__|`)?###Test (START|END)#{2,3}(?:\*\*|__|`)?\s*$")
+
+
+def extract_test(text):
+    """Code between ###Test START## and ###Test END##; otherwise the longest fenced block that
+    looks like a JUnit test. Markdown fence lines are dropped. Returns None if nothing is found."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if (m := MARKER.match(l)) and m[1] == "START"), None)
+    end = next((i for i in range(start + 1, len(lines)) if (m := MARKER.match(lines[i])) and m[1] == "END"),
+               None) if start is not None else None
+    if start is not None and end is not None:
+        body = lines[start + 1:end]
+    else:
+        blocks, cur = [], None
+        for l in lines:
+            if l.strip().startswith("```"):
+                if cur is None:
+                    cur = []
+                else:
+                    if "@Test" in "\n".join(cur):
+                        blocks.append(cur)
+                    cur = None
+            elif cur is not None:
+                cur.append(l)
+        if not blocks:
+            return None
+        body = max(blocks, key=len)
+    code = "\n".join(l for l in body if not l.strip().startswith("```")).strip()
+    return code + "\n" if re.search(r"\bclass\s+\w+", code) else None
+
+
+def _mask(code):
+    """Blank out comments and string/char literals (keeps offsets) so braces can be matched."""
+    return re.sub(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+                  lambda m: re.sub(r"[^\n]", " ", m.group(0)), code, flags=re.S)
+
+
+def test_methods(code):
+    """{method name: body without whitespace} for methods annotated with @Test (JUnit 4 or 5)."""
+    masked = _mask(code)
+    found = {}
+    for m in re.finditer(r"@(Test|ParameterizedTest|TestFactory|RepeatedTest)\b", masked):
+        d = re.compile(r"(\w+)\s*\([^)]*\)\s*(throws\s+[\w.,\s]+)?\{").search(masked, m.end())
+        if not d:
+            continue
+        i, depth = d.end() - 1, 0
+        for j in range(i, len(masked)):
+            depth += {"{": 1, "}": -1}.get(masked[j], 0)
+            if depth == 0:
+                found.setdefault(d.group(1), re.sub(r"\s+", "", code[i:j + 1]))
+                break
+    return found
+
+
+def check_generated_at_t(group, t_cp):
+    """For every saved response of a group: extract the test file, compile it on its own against t,
+    run its test methods once at t, and keep the passing ones. Methods whose body is identical to an
+    earlier kept method are removed. Returns (one row per response, kept methods)."""
+    import hashlib
+    rows, kept, seen = [], [], set()
+    base = WORK / "llm" / group
+    shutil.rmtree(base, ignore_errors=True)
+    order = lambda p: (p.parent.name, TECHNIQUES.index(p.stem) if p.stem in TECHNIQUES else 99, p.stem)
+    for resp in sorted((GEN / group).rglob("*.txt"), key=order):
+        key = f"{resp.parent.name}/{resp.stem}"
+        row = {"응답": key, "추출": "", "컴파일": "", "메서드": 0, "t 통과": 0, "중복 제외 후": 0, "컴파일 오류(첫 줄)": ""}
+        rows.append(row)
+        code = extract_test(resp.read_text())
+        if code is None:
+            row["추출"] = "실패"
+            continue
+        row["추출"] = "성공"
+        name = re.search(r"\bpublic\s+class\s+(\w+)", code) or re.search(r"\bclass\s+(\w+)", code)
+        pkg = re.search(r"^\s*package\s+([\w.]+)\s*;", code, re.M)
+        fqcn = (pkg[1] + "." if pkg else "") + name[1]
+        d = base / key.replace("/", "-")
+        src = d / "src" / (pkg[1].replace(".", "/") if pkg else "") / f"{name[1]}.java"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_text(code)
+        ok, err = compile_java(d / "src", d / "classes", [JSV / "target/classes"] + t_cp + TEST_LIBS)
+        row["컴파일"] = "성공" if ok else "실패"
+        methods = test_methods(code)
+        row["메서드"] = len(methods)
+        if not ok:
+            first = next((l for l in err.splitlines() if "error:" in l), "")
+            row["컴파일 오류(첫 줄)"] = first.split("error:", 1)[-1].strip()[:80]
+            continue
+        res = run_methods([d / "classes", JSV / "target/classes"] + t_cp + TEST_LIBS,
+                          [f"{fqcn}#{m}" for m in methods])
+        passed = [m for m in methods if res.get(f"{fqcn}#{m}") == "pass"]
+        row["t 통과"] = len(passed)
+        for m in passed:
+            h = hashlib.sha256(methods[m].encode()).hexdigest()
+            if h in seen:
+                continue
+            seen.add(h)
+            kept.append({"group": group, "response": key, "dir": str(d), "method": f"{fqcn}#{m}"})
+            row["중복 제외 후"] += 1
+    return rows, kept
+
+
+def show_table(rows):
+    """Display rows as a table (pandas when available)."""
+    try:
+        import pandas as pd
+        from IPython.display import display
+        display(pd.DataFrame(rows).fillna(""))
+    except ImportError:
+        for r in rows:
+            print(r)
