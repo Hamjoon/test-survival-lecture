@@ -220,12 +220,13 @@ GEN = WORK / "generated"
 _last_call = [0.0]
 
 
-def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0):
-    """One Gemini call. Waits between calls to stay under the free-tier per-minute limit and
-    retries when the limit is hit (HTTP 429)."""
+def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0, tries=5):
+    """One Gemini call. Waits between calls to stay under the free-tier per-minute limit.
+    Retries when the per-minute limit is hit (HTTP 429) or the model is busy (HTTP 5xx, e.g.
+    "high demand"), waiting 30, 60, 90 ... seconds."""
     import time
     from google.genai import types, errors
-    for attempt in range(4):
+    for attempt in range(1, tries + 1):
         wait = _last_call[0] + min_interval - time.time()
         if wait > 0:
             time.sleep(wait)
@@ -235,11 +236,14 @@ def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_inter
                 model=model, contents=prompt,
                 config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens))
             return r.text or ""
-        except errors.ClientError as e:
-            if getattr(e, "code", None) != 429 or attempt == 3:
+        except (errors.ClientError, errors.ServerError) as e:
+            code = getattr(e, "code", None)
+            retry = code == 429 or (code is not None and code >= 500)
+            if not retry or attempt == tries:
                 raise
-            print(f"    호출 한도에 걸려 {30 * (attempt + 1)}초 기다립니다")
-            time.sleep(30 * (attempt + 1))
+            reason = "호출 한도" if code == 429 else "모델 혼잡"
+            print(f"    {reason}({code}). {30 * attempt}초 뒤 다시 시도합니다 ({attempt}/{tries - 1})")
+            time.sleep(30 * attempt)
 
 
 def save_responses(group):
