@@ -1,0 +1,326 @@
+{
+ "t": "1.1.0",
+ "targets": [
+  "AnyOfValidator",
+  "OneOfValidator"
+ ],
+ "dev_methods_total": 207,
+ "dev_methods_pass": 192,
+ "methods": [
+  {
+   "method": "com.networknt.schema.CustomUriTest#customUri",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44,
+    "AnyOfValidator": 39
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue285Test#typeValidation",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 39
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue295Test#shouldWorkV7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue313Test#shouldFailV7",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 39
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailFastTest#bothValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 36
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailFastTest#firstOneValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailFastTest#neitherValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 33
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailFastTest#secondOneValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailSlowTest#bothValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 48
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailSlowTest#firstOneValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailSlowTest#neitherValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 45
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue366FailSlowTest#secondOneValid",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue383Test#nestedOneOfsShouldStillMatchV7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue396Test#testComplexPropertyNamesV7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue428Test#testNullableOneOf",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue451Test#shouldWalkAnyOfProperties",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 15
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue451Test#shouldWalkAnyOfPropertiesWithWithPayload",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 15
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue451Test#shouldWalkAnyOfPropertiesWithWithPayloadAndValidation",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 41
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue456Test#shouldWorkT2",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue456Test#shouldWorkT3",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue461Test#shouldWalkWithValidation",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 41
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue493Test#testInvalidJson1",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 39
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue493Test#testInvalidJson2",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 45,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue493Test#testValidJson1",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44,
+    "AnyOfValidator": 42
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue493Test#testValidJson2",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44,
+    "AnyOfValidator": 42
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue550Test#testValidationMessageDoContainSchemaPathForOneOf",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 48
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue606Test#shouldWorkV7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 44,
+    "AnyOfValidator": 42
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue619Test#bundledSchemaLoadsAndValidatesCorrectly_Ref",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue619Test#bundledSchemaLoadsAndValidatesCorrectly_Uri",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue619Test#uriWithEmptyFragment_Ref",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue619Test#uriWithEmptyFragment_Uri",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue662Test#testNoErrorsForValidObject",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 42
+   }
+  },
+  {
+   "method": "com.networknt.schema.Issue664Test#shouldHaveFullSchemaPaths",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteExtrasTest#draft2022012",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteExtrasTest#draft4",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 49
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteExtrasTest#draft7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteTest#draft201909",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 49
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteTest#draft2022012",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteTest#draft4",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteTest#draft6",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.JsonSchemaTestSuiteTest#draft7",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  },
+  {
+   "method": "com.networknt.schema.OpenAPI30JsonSchemaTest#testDiscriminatorMapping",
+   "status": "pass",
+   "target_lines": {
+    "AnyOfValidator": 55
+   }
+  },
+  {
+   "method": "com.networknt.schema.UnevaluatedPropertiesTest#draft201909",
+   "status": "pass",
+   "target_lines": {
+    "OneOfValidator": 50,
+    "AnyOfValidator": 46
+   }
+  }
+ ]
+}
