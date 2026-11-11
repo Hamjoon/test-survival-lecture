@@ -1,0 +1,113 @@
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.networknt.schema.SpecVersion.VersionFlag;
+import org.junit.Test;
+
+import java.nio.file.Paths;
+import java.util.Optional;
+
+import static org.junit.Assert.*;
+
+public class SpecVersionDetectorTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    public void testDetectValidSchema() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"}");
+        assertEquals(VersionFlag.V202012, SpecVersionDetector.detect(jsonNode));
+    }
+
+    @Test(expected = JsonSchemaException.class)
+    public void testDetectMissingSchemaTag() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"foo\": \"bar\"}");
+        SpecVersionDetector.detect(jsonNode);
+    }
+
+    @Test
+    public void testDetectOptionalVersionPresent() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion(jsonNode);
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V7, version.get());
+    }
+
+    @Test
+    public void testDetectOptionalVersionAbsent() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"foo\": \"bar\"}");
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion(jsonNode);
+        assertFalse(version.isPresent());
+    }
+
+    @Test(expected = JsonSchemaException.class)
+    public void testDetectOptionalVersionUnrecognizable() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"$schema\": \"http://example.com/unknown-draft/schema\"}");
+        SpecVersionDetector.detectOptionalVersion(jsonNode);
+    }
+
+    @Test
+    public void testDetectVersionWithNodeAndPathAndDefault() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2019-09/schema\"}");
+        // Node should take precedence over path and default
+        VersionFlag version = SpecVersionDetector.detectVersion(
+                jsonNode, 
+                Paths.get("draft4", "test.json"), 
+                VersionFlag.V7
+        );
+        assertEquals(VersionFlag.V201909, version);
+    }
+
+    @Test
+    public void testDetectVersionFallbackToPath() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"foo\": \"bar\"}");
+        // Path matches draft6, should detect from path since node doesn't have $schema
+        VersionFlag version = SpecVersionDetector.detectVersion(
+                jsonNode, 
+                Paths.get("projects", "draft6", "test.json"), 
+                VersionFlag.V7
+        );
+        assertEquals(VersionFlag.V6, version);
+    }
+
+    @Test
+    public void testDetectVersionFallbackToDefault() throws Exception {
+        JsonNode jsonNode = mapper.readTree("{\"foo\": \"bar\"}");
+        // Neither node nor path has a supported version, should fallback to default
+        VersionFlag version = SpecVersionDetector.detectVersion(
+                jsonNode, 
+                Paths.get("projects", "unknown", "test.json"), 
+                VersionFlag.V4
+        );
+        assertEquals(VersionFlag.V4, version);
+    }
+
+    @Test
+    public void testDetectVersionFromPathFound() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectVersionFromPath(Paths.get("home", "draft2020-12", "schemas"));
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V202012, version.get());
+    }
+
+    @Test
+    public void testDetectVersionFromPathNotFound() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectVersionFromPath(Paths.get("home", "unknown", "schemas"));
+        assertFalse(version.isPresent());
+    }
+
+    @Test
+    public void testDetectOptionalVersionByStringUri() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion("https://json-schema.org/draft/2019-09/schema");
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V201909, version.get());
+    }
+
+    @Test
+    public void testDetectOptionalVersionByStringUriInvalid() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion("http://invalid.uri/schema");
+        assertFalse(version.isPresent());
+    }
+}
+###Test END##

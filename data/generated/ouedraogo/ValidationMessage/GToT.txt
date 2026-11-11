@@ -1,0 +1,209 @@
+To achieve comprehensive JUnit 4 test coverage for the `ValidationMessage` class, three software testing experts collaborate following the strict methodology outlined.
+
+---
+
+### Step 1: Extract and list all the public methods including their signatures
+
+The experts analyze the `ValidationMessage` class and its inner `Builder` class, extracting the following public methods and constructors:
+
+1. `public String getCode()`
+2. `public String getPath()`
+3. `public String getSchemaPath()`
+4. `public void setSchemaPath(String schemaPath)`
+5. `public String[] getArguments()`
+6. `public Map<String, Object> getDetails()`
+7. `public String getMessage()`
+8. `public String toString()`
+9. `public boolean equals(Object o)`
+10. `public int hashCode()`
+11. `public String getType()`
+12. `public void setType(String type)`
+13. `public static ValidationMessage ofWithCustom(String type, ErrorMessageType errorMessageType, MessageFormat messageFormat, String customMessage, String at, String schemaPath, String... arguments)`
+14. `public static ValidationMessage of(String type, ErrorMessageType errorMessageType, MessageFormat messageFormat, String at, String schemaPath, String... arguments)`
+15. `public static ValidationMessage of(String type, ErrorMessageType errorMessageType, MessageFormat messageFormat, String at, String schemaPath, Map<String, Object> details)`
+16. `Builder` class methods:
+    * `public Builder type(String type)`
+    * `public Builder code(String code)`
+    * `public Builder path(String path)`
+    * `public Builder schemaPath(String schemaPath)`
+    * `public Builder arguments(String... arguments)`
+    * `public Builder details(Map<String, Object> details)`
+    * `public Builder format(MessageFormat format)`
+    * `public Builder customMessage(String customMessage)`
+    * `public ValidationMessage build()`
+
+---
+
+### Step 2: Generate basic JUnit 4 test cases for basic functionality
+Each expert proposes baseline tests for getters, setters, builders, and static factory methods.
+
+---
+
+### Step 3: Identify potential edge cases and exception handling scenarios
+The experts identify the following scenarios:
+* **Null inputs:** Passing `null` values to setters, builders, and static factory methods (e.g., `schemaPath`, `arguments`, `details`, `MessageFormat`).
+* **Empty / Blank custom messages:** Testing how the builder handles blank vs. valid custom messages when formatting.
+* **Arguments array variations:** Empty `arguments` array vs. `null` `arguments` array combined with `MessageFormat`.
+* **`equals` and `hashCode` contract edge cases:** Comparing with `null`, comparing with different classes, identical instances, and objects with differing fields (type, code, path, schemaPath, arguments, details, message).
+
+---
+
+### Step 4: Generate JUnit 4 test cases for edge cases and exceptions
+The experts design specific test cases targeting null safety, contract verification for `equals`/`hashCode`, and custom messaging overrides.
+
+---
+
+### Step 5: Merge all individual test cases into a complete JUnit 4 test file
+
+Below is the final, complete JUnit 4 test file containing typical functionality, edge cases, and builder/factory method tests.
+
+###Test START##
+package com.networknt.schema;
+
+import org.junit.Test;
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.Assert.*;
+
+public class ValidationMessageTest {
+
+    // Dummy ErrorMessageType implementation for testing static factory methods
+    private static class DummyErrorMessageType implements ErrorMessageType {
+        private final String errorCode;
+        private final String customMessage;
+
+        public DummyErrorMessageType(String errorCode, String customMessage) {
+            this.errorCode = errorCode;
+            this.customMessage = customMessage;
+        }
+
+        @Override
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        @Override
+        public String getCustomMessage() {
+            return customMessage;
+        }
+    }
+
+    @Test
+    public void testBasicGettersAndSetters() {
+        ValidationMessage msg = new ValidationMessage();
+        msg.setType("type1");
+        msg.setCode("code1");
+        msg.setPath("path1");
+        msg.setSchemaPath("schemaPath1");
+        msg.setArguments(new String[]{"arg1"});
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        msg.setDetails(details);
+        msg.setMessage("message1");
+
+        assertEquals("type1", msg.getType());
+        assertEquals("code1", msg.getCode());
+        assertEquals("path1", msg.getPath());
+        assertEquals("schemaPath1", msg.getSchemaPath());
+        assertArrayEquals(new String[]{"arg1"}, msg.getArguments());
+        assertEquals(details, msg.getDetails());
+        assertEquals("message1", msg.getMessage());
+        assertEquals("message1", msg.toString());
+    }
+
+    @Test
+    public void testBuilderPattern() {
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .type("error")
+                .code("100")
+                .path("#/foo")
+                .schemaPath("#/properties/foo")
+                .arguments("val1", "val2")
+                .customMessage("Custom message")
+                .build();
+
+        assertEquals("error", msg.getType());
+        assertEquals("100", msg.getCode());
+        assertEquals("#/foo", msg.getPath());
+        assertEquals("#/properties/foo", msg.getSchemaPath());
+        assertArrayEquals(new String[]{"val1", "val2"}, msg.getArguments());
+        assertEquals("Custom message", msg.getMessage());
+    }
+
+    @Test
+    public void testBuilderWithFormat() {
+        MessageFormat format = new MessageFormat("Path {0} failed with {1}");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .path("#/bar")
+                .arguments("invalid")
+                .format(format)
+                .build();
+
+        // format uses path as objs[0] and arguments[0] as objs[1]
+        assertEquals("Path #/bar failed with invalid", msg.getMessage());
+    }
+
+    @Test
+    public void testStaticOfMethods() {
+        DummyErrorMessageType errorType = new DummyErrorMessageType("ERR001", "Default custom");
+        MessageFormat format = new MessageFormat("Error at {0}");
+
+        ValidationMessage msg1 = ValidationMessage.of("type", errorType, format, "#/at", "#/schema");
+        assertNotNull(msg1);
+        assertEquals("ERR001", msg1.getCode());
+        assertEquals("#/at", msg1.getPath());
+        assertEquals("#/schema", msg1.getSchemaPath());
+        assertEquals("Error at #/at", msg1.getMessage());
+
+        ValidationMessage msg2 = ValidationMessage.ofWithCustom("type", errorType, format, "Override custom", "#/at", "#/schema", "arg");
+        assertEquals("Override custom", msg2.getMessage());
+
+        Map<String, Object> details = new HashMap<>();
+        ValidationMessage msg3 = ValidationMessage.of("type", errorType, format, "#/at", "#/schema", details);
+        assertEquals(details, msg3.getDetails());
+    }
+
+    @Test
+    public void testEqualsAndHashCode() {
+        ValidationMessage msg1 = new ValidationMessage.Builder()
+                .type("type").code("code").path("path").schemaPath("schemaPath").arguments("arg").build();
+        ValidationMessage msg2 = new ValidationMessage.Builder()
+                .type("type").code("code").path("path").schemaPath("schemaPath").arguments("arg").build();
+        ValidationMessage msg3 = new ValidationMessage.Builder()
+                .type("different").code("code").path("path").schemaPath("schemaPath").arguments("arg").build();
+
+        assertEquals(msg1, msg1);
+        assertEquals(msg1, msg2);
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+        assertNotEquals(msg1, msg3);
+        assertNotEquals(msg1, null);
+        assertNotEquals(msg1, "Some String");
+    }
+
+    @Test
+    public void testEdgeCaseNullArgumentsAndFormat() {
+        MessageFormat format = new MessageFormat("Path {0}");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .path("#/nullArgs")
+                .arguments((String[]) null)
+                .format(format)
+                .build();
+
+        assertEquals("Path #/nullArgs", msg.getMessage());
+    }
+
+    @Test
+    public void testEdgeCaseBlankCustomMessage() {
+        MessageFormat format = new MessageFormat("Path {0} error");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .path("#/test")
+                .customMessage("   ") // blank message should fallback to format
+                .format(format)
+                .build();
+
+        assertEquals("Path #/test error", msg.getMessage());
+    }
+}
+###Test END##

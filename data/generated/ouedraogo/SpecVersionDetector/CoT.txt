@@ -1,0 +1,137 @@
+###Test START##
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.networknt.schema.SpecVersion.VersionFlag;
+import org.junit.Test;
+
+import java.nio.file.Paths;
+import java.util.Optional;
+
+import static org.junit.Assert.*;
+
+public class SpecVersionDetectorTest {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /*
+     * ==========================================
+     * 1. Extracted Public Methods & Signatures:
+     * ==========================================
+     * - public static VersionFlag detect(JsonNode jsonNode)
+     * - public static Optional<VersionFlag> detectOptionalVersion(JsonNode jsonNode)
+     * - public static VersionFlag detectVersion(JsonNode jsonNode, Path specification, VersionFlag defaultVersion)
+     * - public static Optional<VersionFlag> detectVersionFromPath(Path path)
+     * - public static Optional<VersionFlag> detectOptionalVersion(String schemaUri)
+     */
+
+    /*
+     * ==========================================
+     * 2. Basic JUnit 4 Test Cases for Functionality
+     * ==========================================
+     */
+
+    @Test
+    public void testDetectBasic() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        VersionFlag version = SpecVersionDetector.detect(node);
+        assertEquals(VersionFlag.V7, version);
+    }
+
+    @Test
+    public void testDetectOptionalVersionJsonNodeBasic() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion(node);
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V7, version.get());
+    }
+
+    @Test
+    public void testDetectVersionBasic() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        VersionFlag version = SpecVersionDetector.detectVersion(node, Paths.get("draft4"), VersionFlag.V202012);
+        assertEquals(VersionFlag.V7, version);
+    }
+
+    @Test
+    public void testDetectVersionFromPathBasic() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectVersionFromPath(Paths.get("/tests/draft6/schema.json"));
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V6, version.get());
+    }
+
+    @Test
+    public void testDetectOptionalVersionStringBasic() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion("https://json-schema.org/draft/2019-09/schema");
+        assertTrue(version.isPresent());
+        assertEquals(VersionFlag.V201909, version.get());
+    }
+
+    /*
+     * ==========================================
+     * 3 & 4. Edge Cases and Exception Handling Scenarios
+     * ==========================================
+     * - detect() without $schema tag -> throws JsonSchemaException
+     * - detectOptionalVersion() without $schema tag -> returns empty Optional
+     * - detect() with unrecognizable $schema uri -> throws JsonSchemaException
+     * - detectVersion() falling back to defaultVersion when neither jsonNode nor path contains a version
+     * - detectVersion() prioritizing jsonNode over path specification
+     * - detectVersionFromPath() with path containing no supported version -> returns empty Optional
+     * - detectOptionalVersion(String) with null or unknown URI -> returns empty Optional
+     */
+
+    @Test(expected = JsonSchemaException.class)
+    public void testDetectMissingSchemaTagThrowsException() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"type\": \"object\"}");
+        SpecVersionDetector.detect(node);
+    }
+
+    @Test
+    public void testDetectOptionalVersionMissingSchemaTagReturnsEmpty() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"type\": \"object\"}");
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion(node);
+        assertFalse(version.isPresent());
+    }
+
+    @Test(expected = JsonSchemaException.class)
+    public void testDetectUnrecognizableSchemaTagThrowsException() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"$schema\": \"http://json-schema.org/unknown-draft/schema#\"}");
+        SpecVersionDetector.detect(node);
+    }
+
+    @Test
+    public void testDetectVersionFallsBackToDefault() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"type\": \"object\"}");
+        VersionFlag version = SpecVersionDetector.detectVersion(node, Paths.get("some/random/path"), VersionFlag.V202012);
+        assertEquals(VersionFlag.V202012, version);
+    }
+
+    @Test
+    public void testDetectVersionPrioritizesJsonNodeOverPath() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        // Path has draft4, but jsonNode has draft7
+        VersionFlag version = SpecVersionDetector.detectVersion(node, Paths.get("draft4"), VersionFlag.V202012);
+        assertEquals(VersionFlag.V7, version);
+    }
+
+    @Test
+    public void testDetectVersionFallsBackToPathWhenJsonNodeLacksSchema() throws Exception {
+        JsonNode node = objectMapper.readTree("{\"type\": \"object\"}");
+        VersionFlag version = SpecVersionDetector.detectVersion(node, Paths.get("draft4"), VersionFlag.V202012);
+        assertEquals(VersionFlag.V4, version);
+    }
+
+    @Test
+    public void testDetectVersionFromPathNoMatch() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectVersionFromPath(Paths.get("foo/bar/baz"));
+        assertFalse(version.isPresent());
+    }
+
+    @Test
+    public void testDetectOptionalVersionStringUnknown() {
+        Optional<VersionFlag> version = SpecVersionDetector.detectOptionalVersion("http://unknown-uri");
+        assertFalse(version.isPresent());
+    }
+}
+###Test END##

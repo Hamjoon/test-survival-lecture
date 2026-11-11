@@ -1,0 +1,232 @@
+**Expert 1 (Unit Testing & POJO Specialist):** Hello everyone. I am here to ensure we thoroughly test the basic getters, setters, and core object contract methods (`equals`, `hashCode`, `toString`) of the `ValidationMessage` class. 
+
+**Expert 2 (Builder Pattern & Factory Methods Specialist):** Hi. My focus will be on testing the static factory methods (`of` and `ofWithCustom`) and the inner `Builder` class logic, including message formatting and custom message handling.
+
+**Expert 3 (Edge Case & Integration Tester):** Greetings. I will handle edge cases, such as null arguments, blank custom messages, and checking how details and paths interact within the message building process.
+
+---
+
+### Step 1: Proposing individual test cases
+
+*   **Expert 1:** For getters and setters, I propose testing `setCode` and `getCode`:
+    ```java
+    @Test
+    public void testGetAndSetCode() {
+        ValidationMessage msg = new ValidationMessage();
+        msg.setCode("1001");
+        assertEquals("1001", msg.getCode());
+    }
+    ```
+*   **Expert 2:** For the `Builder` pattern, I propose testing the fluent builder initialization and build process:
+    ```java
+    @Test
+    public void testBuilderBasic() {
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .type("error")
+                .code("1002")
+                .path("#/field")
+                .schemaPath("#/properties/field")
+                .build();
+        assertEquals("error", msg.getType());
+        assertEquals("#/field", msg.getPath());
+    }
+    ```
+*   **Expert 3:** For edge cases, I propose testing `equals` and `hashCode` symmetry and contract:
+    ```java
+    @Test
+    public void testEqualsAndHashCode() {
+        ValidationMessage msg1 = new ValidationMessage.Builder().code("100").path("a").build();
+        ValidationMessage msg2 = new ValidationMessage.Builder().code("100").path("a").build();
+        assertEquals(msg1, msg2);
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+    }
+    ```
+
+*(All experts agree the proposed tests are solid and cover different aspects of the class without overlapping incorrectly.)*
+
+---
+
+### Final Step: Comprehensive JUnit 4 Test Suite
+
+Combining our expertise, here is the complete JUnit 4 test suite covering typical use cases, edge cases, and error scenarios for `ValidationMessage`.
+
+###Test START##
+package com.networknt.schema;
+
+import org.junit.Test;
+
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.Assert.*;
+
+public class ValidationMessageTest {
+
+    @Test
+    public void testGettersAndSetters() {
+        ValidationMessage msg = new ValidationMessage();
+        msg.setType("type");
+        msg.setCode("code1");
+        msg.setPath("path1");
+        msg.setSchemaPath("schemaPath1");
+        msg.setArguments(new String[]{"arg1"});
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        msg.setDetails(details);
+        msg.setMessage("message1");
+
+        assertEquals("type", msg.getType());
+        assertEquals("code1", msg.getCode());
+        assertEquals("path1", msg.getPath());
+        assertEquals("schemaPath1", msg.getSchemaPath());
+        assertArrayEquals(new String[]{"arg1"}, msg.getArguments());
+        assertEquals(details, msg.getDetails());
+        assertEquals("message1", msg.getMessage());
+        assertEquals("message1", msg.toString());
+    }
+
+    @Test
+    public void testEqualsAndHashCode() {
+        ValidationMessage msg1 = new ValidationMessage();
+        msg1.setType("type");
+        msg1.setCode("code");
+
+        ValidationMessage msg2 = new ValidationMessage();
+        msg2.setType("type");
+        msg2.setCode("code");
+
+        ValidationMessage msg3 = new ValidationMessage();
+        msg3.setType("different");
+        msg3.setCode("code");
+
+        assertEquals(msg1, msg1);
+        assertEquals(msg1, msg2);
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+        assertNotEquals(msg1, msg3);
+        assertNotEquals(msg1, null);
+        assertNotEquals(msg1, "some string");
+    }
+
+    @Test
+    public void testEqualsAndHashCodeWithNullsAndArrays() {
+        ValidationMessage msg1 = new ValidationMessage.Builder()
+                .type(null)
+                .code(null)
+                .path(null)
+                .schemaPath(null)
+                .arguments((String[]) null)
+                .details(null)
+                .format(null)
+                .customMessage(null)
+                .build();
+
+        ValidationMessage msg2 = new ValidationMessage.Builder()
+                .type(null)
+                .code(null)
+                .path(null)
+                .schemaPath(null)
+                .arguments((String[]) null)
+                .details(null)
+                .format(null)
+                .customMessage(null)
+                .build();
+
+        assertEquals(msg1, msg2);
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+    }
+
+    @Test
+    public void testBuilderWithFormat() {
+        MessageFormat format = new MessageFormat("Value at {0} must be {1}");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .type("error")
+                .code("ERR1")
+                .path("#/test")
+                .schemaPath("#/schema")
+                .arguments("valid")
+                .format(format)
+                .build();
+
+        assertEquals("Value at #/test must be valid", msg.getMessage());
+    }
+
+    @Test
+    public void testBuilderWithCustomMessage() {
+        MessageFormat format = new MessageFormat("Fallback {0}");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .path("#/test")
+                .format(format)
+                .customMessage("Custom Error Message")
+                .build();
+
+        assertEquals("Custom Error Message", msg.getMessage());
+    }
+
+    @Test
+    public void testOfWithCustomFactory() {
+        // Mocking or using a simple implementation of ErrorMessageType if available, 
+        // otherwise passing null/dummy if allowed, but since ErrorMessageType is an interface/class, 
+        // we can test via standard factory if properties allow. Let's use anonymous class or null simulation.
+        ErrorMessageType dummyError = new ErrorMessageType() {
+            @Override
+            public String getErrorCode() { return "100"; }
+            @Override
+            public String getCustomMessage() { return "Default Custom"; }
+        };
+
+        MessageFormat format = new MessageFormat("Format {0}");
+        ValidationMessage msg = ValidationMessage.ofWithCustom(
+                "type", dummyError, format, "Override Custom", "#/at", "#/schemaAt", "arg1"
+        );
+
+        assertEquals("100", msg.getCode());
+        assertEquals("Override Custom", msg.getMessage());
+        assertEquals("#/at", msg.getPath());
+        assertEquals("#/schemaAt", msg.getSchemaPath());
+        assertArrayEquals(new String[]{"arg1"}, msg.getArguments());
+    }
+
+    @Test
+    public void testOfFactoryStandard() {
+        ErrorMessageType dummyError = new ErrorMessageType() {
+            @Override
+            public String getErrorCode() { return "200"; }
+            @Override
+            public String getCustomMessage() { return ""; }
+        };
+
+        MessageFormat format = new MessageFormat("Field {0} error {1}");
+        ValidationMessage msg = ValidationMessage.of(
+                "type", dummyError, format, "#/at", "#/schemaAt", "arg1"
+        );
+
+        assertEquals("200", msg.getCode());
+        // Since custom message is blank, it falls back to format.format
+        // objs[0] = path ("#/at"), objs[1] = arguments[0] ("arg1")
+        assertEquals("Field #/at error arg1", msg.getMessage());
+    }
+
+    @Test
+    public void testOfFactoryWithDetails() {
+        ErrorMessageType dummyError = new ErrorMessageType() {
+            @Override
+            public String getErrorCode() { return "300"; }
+            @Override
+            public String getCustomMessage() { return null; }
+        };
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("detailKey", "detailValue");
+
+        MessageFormat format = new MessageFormat("Details format {0}");
+        ValidationMessage msg = ValidationMessage.of(
+                "type", dummyError, format, "#/at", "#/schemaAt", details
+        );
+
+        assertEquals("300", msg.getCode());
+        assertEquals(details, msg.getDetails());
+        assertEquals("Details format #/at", msg.getMessage());
+    }
+}
+###Test END##
