@@ -189,6 +189,22 @@ def load_dev_scope():
     return json.loads((REPO / "data/json-schema-validator/dev-scope.json").read_text())
 
 
+def first_error(err, path=None):
+    """First compile error of a file (or of the whole output), with the missing symbol if any."""
+    lines = err.splitlines()
+    for i, l in enumerate(lines):
+        if "error:" in l and (path is None or l.startswith(str(path))):
+            msg = l.split("error:", 1)[1].strip()
+            if msg == "cannot find symbol":
+                sym = next((x.split("symbol:", 1)[1].strip() for x in lines[i + 1:i + 4] if "symbol:" in x), "")
+                msg = f"{msg}: {sym}"
+            return msg
+    return ""
+
+
+DEV_COMPILE_ERRORS = {}
+
+
 def compile_dev_tests(prod_classes, classpath, out_dir):
     """Compile t's Dev test sources (unchanged) against the given production classes.
     Files that fail are dropped and the rest is compiled again, until it compiles.
@@ -201,6 +217,7 @@ def compile_dev_tests(prod_classes, classpath, out_dir):
     shutil.copytree(JSV / "src/test/suite", out_dir, dirs_exist_ok=True)
     shutil.copytree(JSV / "src/test/java", src)
     dropped = set()
+    DEV_COMPILE_ERRORS.clear()
     while True:
         ok, err = compile_java(src, out_dir, [prod_classes] + list(classpath) + [LAUNCHER])
         if ok:
@@ -210,7 +227,9 @@ def compile_dev_tests(prod_classes, classpath, out_dir):
             raise RuntimeError(err[-2000:])
         for b in bad:
             p = pathlib.Path(b)
-            dropped.add(str(p.relative_to(src).with_suffix("")).replace("/", "."))
+            fq = str(p.relative_to(src).with_suffix("")).replace("/", ".")
+            dropped.add(fq)
+            DEV_COMPILE_ERRORS[fq] = first_error(err, b)
             p.unlink()
 
 
@@ -474,18 +493,21 @@ def _key(m):
 
 def run_groups_at(commit_dir, commit_cp, groups, alive, t_cp, exec_dir):
     """Run every group's alive methods at one commit, unchanged test sources from t.
-    Returns {group: {key: pass|fail|compile-fail}}. JaCoCo data goes to exec_dir/<group>.exec."""
+    Returns ({group: {key: pass|fail|compile-fail}}, {group: {test file: first compile error}}).
+    JaCoCo data goes to exec_dir/<group>.exec."""
     prod = commit_dir / "target/classes"
     cp = merge_classpath(commit_cp, t_cp)
     exec_dir.mkdir(parents=True, exist_ok=True)
-    results = {}
+    results, errors = {}, {}
     for g, members in groups.items():
         ex = exec_dir / f"{_slug(g)}.exec"
         ex.unlink(missing_ok=True)
         todo = [m for m in members if _key(m) in alive[g]]
         res = {}
+        errs = errors.setdefault(g, {})
         if g == "Dev(scope)":
             dropped = compile_dev_tests(prod, cp, exec_dir / "dev-test-classes")
+            errs.update({f: DEV_COMPILE_ERRORS.get(f, "") for f in {m["method"].split("#")[0] for m in todo} & dropped})
             ok = [m for m in todo if m["method"].split("#")[0] not in dropped]
             ran = run_methods([exec_dir / "dev-test-classes", prod] + cp, [m["method"] for m in ok], ex)
             for m in todo:
@@ -497,27 +519,30 @@ def run_groups_at(commit_dir, commit_cp, groups, alive, t_cp, exec_dir):
             for d, ms in by_dir.items():
                 out = exec_dir / _slug(g) / pathlib.Path(d).name
                 shutil.rmtree(out, ignore_errors=True)
-                ok, _ = compile_java(pathlib.Path(d) / "src", out, [prod] + cp + TEST_LIBS)
+                ok, err = compile_java(pathlib.Path(d) / "src", out, [prod] + cp + TEST_LIBS)
+                if not ok:
+                    errs[pathlib.Path(d).name] = first_error(err)
                 ran = run_methods([out, prod] + cp + TEST_LIBS, [m["method"] for m in ms], ex) if ok else {}
                 for m in ms:
                     res[_key(m)] = ran.get(m["method"], "fail") if ok else "compile-fail"
         results[g] = res
-    return results
+    return results, errors
 
 
 def survive(groups, t_cp):
     """Cumulative survival at the three commits: a method that breaks once stays broken.
-    Also changed-line coverage of the two target classes at each commit."""
+    Also changed-line coverage of the two target classes and the compile errors at each commit."""
     alive = {g: {_key(m) for m in ms} for g, ms in groups.items()}
     first_failure = {g: {} for g in groups}
     survival = [{"commit": "t", "날짜": "2023-12-15", **{g: len(a) for g, a in alive.items()}}]
-    coverage = []
+    coverage, compile_errors = [], {}
     for label, sha, desc in COMMITS:
         print(f"{label} {sha[:7]} {desc}: 빌드", end="", flush=True)
         d, cp = build_commit(label, sha)
         print(", 실행", end="", flush=True)
         run_dir = WORK / "commits" / f"run-{label.strip('#')}"
-        res = run_groups_at(d, cp, groups, alive, t_cp, run_dir)
+        res, errors = run_groups_at(d, cp, groups, alive, t_cp, run_dir)
+        compile_errors[label] = errors
         for g, r in res.items():
             for k, st in r.items():
                 if st != "pass":
@@ -548,7 +573,7 @@ def survive(groups, t_cp):
             row[g] = f"{hits[g]} ({hits[g] / total:.0%})" if total else "해당 없음"
         coverage.append(row)
         print(" 완료")
-    return survival, coverage, first_failure
+    return survival, coverage, first_failure, compile_errors
 
 
 def survival_table(survival):
@@ -566,4 +591,59 @@ def failure_table(first_failure, groups):
         kinds = [k for _, k in first_failure[g].values()]
         rows.append({"집단": g, "깨진 테스트": len(kinds), "컴파일 실패": kinds.count("컴파일 실패"),
                      "실행 실패": kinds.count("실행 실패")})
+    return rows
+
+
+def compile_error_table(compile_errors, label, top=3):
+    """Per group: the most frequent first compile errors of the test files that failed at a commit."""
+    import collections
+    rows = []
+    for g, errs in compile_errors.get(label, {}).items():
+        for e, n in collections.Counter(e for e in errs.values() if e).most_common(top):
+            rows.append({"집단": g, "실패 파일 수(집단 전체)": len(errs), "첫 오류": e[:100], "이 오류인 파일": n})
+    return rows
+
+
+def removed_public_methods(label, class_name):
+    """Public methods of a target class that a commit removed (no public method of the same name is left)."""
+    sha = next(s for l, s, _ in COMMITS if l == label)
+    diff = sh(f"git -C {JSV} diff {sha}^ {sha} -- src/main/java/{PKG_DIR}/{class_name}.java", quiet=True)
+    sig = re.compile(r"^([-+])\s+public\s+(?:static\s+)?(?:final\s+)?(?:abstract\s+)?[\w<>\[\],.? ]+?\s+(\w+)\s*\(([^)]*)")
+    removed, added = [], set()
+    for line in diff.splitlines():
+        m = sig.match(line)
+        if m:
+            if m[1] == "-":
+                removed.append((m[2], f"{m[2]}({m[3].strip()})"))
+            else:
+                added.add(m[2])
+    return [full for name, full in removed if name not in added]
+
+
+def coverage_at_t(dev_methods, llm_groups, t_cp):
+    """Line coverage of the two target classes at t, per group (tests that passed at t)."""
+    cls, src = JSV / "target/classes", JSV / "src/main/java"
+    execs = {}
+    ex = WORK / "t" / "cov-devscope.exec"
+    ex.unlink(missing_ok=True)
+    run_methods([WORK / "t" / "dev-test-classes", cls] + list(t_cp), dev_methods, ex)
+    execs["Dev(scope)"] = ex
+    for g, kept in llm_groups.items():
+        ex = WORK / "t" / f"cov-{_slug(g)}.exec"
+        ex.unlink(missing_ok=True)
+        by_dir = {}
+        for m in kept:
+            by_dir.setdefault(m["dir"], []).append(m["method"])
+        for d, methods in by_dir.items():
+            run_methods([pathlib.Path(d) / "classes", cls] + list(t_cp) + TEST_LIBS, methods, ex)
+        execs[g] = ex
+    cov = {g: target_coverage(ex, cls, src) if ex.exists() else {} for g, ex in execs.items()}
+    rows = []
+    for c in TARGETS:
+        total = next((v[c][1] for v in cov.values() if c in v), 0)
+        row = {"클래스 (실행 가능한 줄)": f"{c} ({total})"}
+        for g in execs:
+            hit = cov[g].get(c, (0, total))[0]
+            row[g] = f"{hit} ({hit / total:.1%})" if total else "-"
+        rows.append(row)
     return rows
