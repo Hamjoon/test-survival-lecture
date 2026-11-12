@@ -1,0 +1,56 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_setType_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @AfterEach
+    void teardownAfterEach() {
+        validationMessage = null;
+    }
+
+    @Test
+    void testSetType() {
+        // Given
+        String type = "error";
+        // When
+        validationMessage.setType(type);
+        // Then
+        assertEquals(type, validationMessage.getType(), "The type field of ValidationMessage should be set to 'error'.");
+    }
+
+    /**
+     * Test setType with various boundary and valid conditions:
+     * - Valid non-null string value ('error')
+     * - Null value
+     * - Empty string value ('')
+     */
+    @ParameterizedTest
+    @ValueSource(strings = { "error" })
+    @NullAndEmptySource
+    void testSetTypeParameterized(String type) {
+        // When
+        validationMessage.setType(type);
+        // Then
+        assertEquals(type, validationMessage.getType(), "The type field of ValidationMessage should match the set value.");
+    }
+}
+
+```

@@ -1,0 +1,54 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getArguments_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testGetArguments() {
+        // Given
+        String[] expectedArguments = { "arg1", "arg2" };
+        validationMessage.setArguments(expectedArguments);
+        // When
+        String[] actualArguments = validationMessage.getArguments();
+        // Then
+        assertArrayEquals(expectedArguments, actualArguments);
+    }
+
+    @Test
+    void testGetArguments_WhenNull_ShouldReturnNull() {
+        // Given: arguments field is not initialized (remains null by default)
+        // When
+        String[] actualArguments = validationMessage.getArguments();
+        // Then
+        assertNull(actualArguments, "Verify that getArguments returns null when arguments field is not initialized.");
+    }
+
+    @Test
+    void testGetArguments_WhenEmptyArray_ShouldReturnEmptyArray() {
+        // Given
+        String[] expectedArguments = new String[0];
+        validationMessage.setArguments(expectedArguments);
+        // When
+        String[] actualArguments = validationMessage.getArguments();
+        // Then
+        assertNotNull(actualArguments);
+        assertEquals(0, actualArguments.length, "Verify that getArguments returns an empty array when arguments are set to an empty array.");
+    }
+}
+
+```

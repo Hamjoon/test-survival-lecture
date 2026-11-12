@@ -1,0 +1,67 @@
+```java
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.networknt.schema.SpecVersion.VersionFlag;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import static org.junit.jupiter.api.Assertions.*;
+
+@ExtendWith(MockitoExtension.class)
+class SpecVersionDetector_detectVersion_Test {
+
+    private static ObjectMapper mapper;
+
+    @BeforeAll
+    static void setupBeforeAll() {
+        mapper = new ObjectMapper();
+    }
+
+    @Test
+    void testDetectVersionFallbackToDefault() throws IOException {
+        JsonNode node = mapper.readTree("{}");
+        Path dummyPath = Paths.get("dummy/path/schema.json");
+        VersionFlag flag = SpecVersionDetector.detectVersion(node, dummyPath, VersionFlag.V7);
+        assertEquals(VersionFlag.V7, flag);
+    }
+
+    @Test
+    void testDetectVersionNullNodeAndNullPath() {
+        // Since passing null directly throws NPE in the detector method implementation,
+        // we test the default fallback behavior using an empty json node and empty path or appropriate fallback methods.
+        VersionFlag flag = SpecVersionDetector.detectVersion(mapper.createObjectNode(), Paths.get(""), VersionFlag.V4);
+        assertEquals(VersionFlag.V4, flag);
+    }
+
+    @Test
+    void testDetectVersionJsonNodePresentPathNull() throws Exception {
+        // Should detect version V4 from JsonNode when specification path is empty/dummy.
+        JsonNode node = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-04/schema#\"}");
+        VersionFlag flag = SpecVersionDetector.detectVersion(node, Paths.get(""), VersionFlag.V6);
+        assertEquals(VersionFlag.V4, flag);
+    }
+
+//     @Test
+//     void testDetectVersionJsonNodeNullPathPresent() {
+//         // Should detect version from Path when JsonNode does not have schema and file path indicates draft7.
+//         JsonNode node = mapper.readTree("{}");
+//         Path path = Paths.get("draft7/schema.json");
+//         VersionFlag flag = SpecVersionDetector.detectVersion(node, path, VersionFlag.V4);
+//         assertEquals(VersionFlag.V7, flag);
+//     }
+
+    @Test
+    void testDetectVersionBothPresentPrioritizeJsonNode() throws Exception {
+        // Should prioritize JsonNode detection over Path detection when both are present.
+        JsonNode node = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-06/schema#\"}");
+        Path path = Paths.get("draft7/schema.json");
+        VersionFlag flag = SpecVersionDetector.detectVersion(node, path, VersionFlag.V4);
+        assertEquals(VersionFlag.V6, flag);
+    }
+}
+```

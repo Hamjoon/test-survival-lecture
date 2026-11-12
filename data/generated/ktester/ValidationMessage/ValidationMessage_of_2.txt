@@ -1,0 +1,110 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_of_2_Test {
+
+    @Mock
+    private ErrorMessageType errorMessageType;
+
+    private MessageFormat messageFormat;
+
+    private Map<String, Object> details;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        messageFormat = new MessageFormat("Path {0} failed with argument {1}");
+        details = new HashMap<>();
+        details.put("key", "value");
+    }
+
+    @Test
+    void testOf() {
+        // Given
+        String type = "error";
+        String at = "$.property";
+        String schemaPath = "$.properties.property";
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, details);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertEquals(details, validationMessage.getDetails());
+        assertEquals("Path $.property failed with argument {1}", validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfMethodWithStandardParameters() {
+        // Test of method with standard parameters successfully builds ValidationMessage
+        String type = "type1";
+        String at = "/path/to/element";
+        String schemaPath = "/path/to/schema";
+        when(errorMessageType.getErrorCode()).thenReturn("ERR_STANDARD");
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, (Map<String, Object>) null);
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR_STANDARD", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertNull(validationMessage.getDetails());
+        assertNotNull(validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfMethodWithNullMessageFormatAndDetails() {
+        // Test of method with null messageFormat and valid details map successfully builds ValidationMessage
+        String type = "type2";
+        String at = "/path/to/element";
+        String schemaPath = "/path/to/schema";
+        when(errorMessageType.getErrorCode()).thenReturn("ERR_NULL_FORMAT");
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, null, at, schemaPath, details);
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR_NULL_FORMAT", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertEquals(details, validationMessage.getDetails());
+        assertNull(validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfMethodWithAllNullParameters() {
+        // Test of method with other null parameters except errorMessageType handles gracefully and builds ValidationMessage
+        when(errorMessageType.getErrorCode()).thenReturn(null);
+        ValidationMessage validationMessage = ValidationMessage.of(null, errorMessageType, null, null, null, (Map<String, Object>) null);
+        assertNotNull(validationMessage);
+        assertNull(validationMessage.getType());
+        assertNull(validationMessage.getCode());
+        assertNull(validationMessage.getPath());
+        assertNull(validationMessage.getSchemaPath());
+        assertNull(validationMessage.getDetails());
+        assertNull(validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfMethodErrorMessageTypeNullThrowsException() {
+        // Test of method where errorMessageType is null throws NullPointerException when calling getErrorCode()
+        String type = "type1";
+        String at = "/path/to/element";
+        String schemaPath = "/path/to/schema";
+        assertThrows(NullPointerException.class, () -> {
+            ValidationMessage.of(type, null, messageFormat, at, schemaPath, (Map<String, Object>) null);
+        });
+    }
+}
+
+```

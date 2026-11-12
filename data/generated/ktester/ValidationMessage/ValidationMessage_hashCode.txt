@@ -1,0 +1,106 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.util.HashMap;
+import java.util.Map;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_hashCode_Test {
+
+    private ValidationMessage validationMessage1;
+
+    private ValidationMessage validationMessage2;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage1 = new ValidationMessage();
+        validationMessage2 = new ValidationMessage();
+    }
+
+    @Test
+    void testHashCodeEqualObjects() {
+        validationMessage1.setType("type");
+        validationMessage1.setCode("code");
+        validationMessage1.setPath("path");
+        validationMessage1.setSchemaPath("schemaPath");
+        validationMessage1.setMessage("message");
+        validationMessage1.setArguments(new String[] { "arg1", "arg2" });
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        validationMessage1.setDetails(details);
+        validationMessage2.setType("type");
+        validationMessage2.setCode("code");
+        validationMessage2.setPath("path");
+        validationMessage2.setSchemaPath("schemaPath");
+        validationMessage2.setMessage("message");
+        validationMessage2.setArguments(new String[] { "arg1", "arg2" });
+        Map<String, Object> details2 = new HashMap<>();
+        details2.put("key", "value");
+        validationMessage2.setDetails(details2);
+        assertEquals(validationMessage1.hashCode(), validationMessage2.hashCode());
+    }
+
+    @Test
+    void testHashCodeDifferentObjects() {
+        validationMessage1.setType("type1");
+        validationMessage2.setType("type2");
+        assertNotEquals(validationMessage1.hashCode(), validationMessage2.hashCode());
+    }
+
+    @Test
+    void testHashCodeNullFields() {
+        int hashCode1 = validationMessage1.hashCode();
+        int hashCode2 = validationMessage2.hashCode();
+        assertEquals(hashCode1, hashCode2);
+    }
+
+    @Test
+    void testHashCodeNonNullFields() {
+        // Test hashCode when all fields (type, code, path, schemaPath, details, arguments, message) are non-null.
+        validationMessage1.setType("type");
+        validationMessage1.setCode("code");
+        validationMessage1.setPath("path");
+        validationMessage1.setSchemaPath("schemaPath");
+        validationMessage1.setMessage("message");
+        validationMessage1.setArguments(new String[] { "arg1", "arg2" });
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        validationMessage1.setDetails(details);
+        int hashCode = validationMessage1.hashCode();
+        // Verify that a valid hash code is computed and does not throw any exception
+        assertNotEquals(0, hashCode);
+    }
+
+    @Test
+    void testHashCodePartialNullFields() {
+        // Test hashCode when only some fields like type and code are populated while others are null.
+        validationMessage1.setType("type");
+        validationMessage1.setCode("code");
+        // path, schemaPath, details, arguments, message remain null
+        validationMessage2.setType("type");
+        validationMessage2.setCode("code");
+        assertEquals(validationMessage1.hashCode(), validationMessage2.hashCode());
+        assertNotEquals(0, validationMessage1.hashCode());
+    }
+
+    @Test
+    void testHashCodeConsistencyAndEquality() {
+        // Test that two distinct ValidationMessage instances with identical field values produce the same hash code satisfying the equals-hashCode contract.
+        validationMessage1.setType("required");
+        validationMessage1.setCode("1028");
+        validationMessage1.setPath("$.property");
+        validationMessage2.setType("required");
+        validationMessage2.setCode("1028");
+        validationMessage2.setPath("$.property");
+        assertEquals(validationMessage1, validationMessage2);
+        assertEquals(validationMessage1.hashCode(), validationMessage2.hashCode());
+    }
+}
+
+```

@@ -1,0 +1,39 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import java.util.Optional;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+@ExtendWith(MockitoExtension.class)
+class SpecVersionDetector_detectOptionalVersion_2_Test {
+
+    @ParameterizedTest
+    @CsvSource({ "http://json-schema.org/draft-04/schema#, V4", "http://json-schema.org/draft-06/schema#, V6", "http://json-schema.org/draft-07/schema#, V7", "https://json-schema.org/draft/2019-09/schema, V201909", "https://json-schema.org/draft/2020-12/schema, V202012" })
+    void detectOptionalVersion_ValidUri_ReturnsVersionFlag(String schemaUri, SpecVersion.VersionFlag expectedFlag) {
+        // Given & When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectOptionalVersion(schemaUri);
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(expectedFlag, result.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "http://json-schema.org/draft-03/schema#", "http://example.com/unknown-schema", "" })
+    void detectOptionalVersion_InvalidOrUnknownUri_ReturnsEmpty(String schemaUri) {
+        // Given & When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectOptionalVersion(schemaUri);
+        // Then
+        assertEquals(Optional.empty(), result);
+    }
+}
+
+```

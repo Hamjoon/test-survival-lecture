@@ -1,0 +1,34 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_toString_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testToString() {
+        // Given
+        // Test case: Test toString returns the message when message field is set to a non-null string.
+        String expectedMessage = "$.property: is missing";
+        validationMessage.setMessage(expectedMessage);
+        // When
+        String actualMessage = validationMessage.toString();
+        // Then
+        assertEquals(expectedMessage, actualMessage);
+    }
+}
+
+```

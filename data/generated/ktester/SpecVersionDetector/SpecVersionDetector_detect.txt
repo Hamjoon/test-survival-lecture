@@ -1,0 +1,126 @@
+```java
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.io.IOException;
+import java.io.InputStream;
+
+@ExtendWith(MockitoExtension.class)
+class SpecVersionDetector_detect_Test {
+
+    private ObjectMapper mapper;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        mapper = new ObjectMapper();
+    }
+
+    @Test
+    void testDetectValidSchema() throws IOException {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-04/schema#\"}");
+        // When
+        SpecVersion.VersionFlag flag = SpecVersionDetector.detect(node);
+        // Then
+        assertEquals(SpecVersion.VersionFlag.V4, flag);
+    }
+
+    @Test
+    void testDetectMissingSchemaTagThrowsException() throws IOException {
+        // Given
+        JsonNode node = mapper.readTree("{}");
+        // When & Then
+        JsonSchemaException exception = assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detect(node);
+        });
+        assertEquals("'$schema' tag is not present", exception.getMessage());
+    }
+
+    @Test
+    void testDetectVersion202012() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"}");
+        // When
+        SpecVersion.VersionFlag flag = SpecVersionDetector.detect(node);
+        // Then
+        assertEquals(SpecVersion.VersionFlag.V202012, flag);
+    }
+
+    @Test
+    void testDetectEmptyNodeThrowsException() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{}");
+        // When & Then
+        JsonSchemaException exception = assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detect(node);
+        });
+        assertEquals("'$schema' tag is not present", exception.getMessage());
+    }
+
+    @Test
+    void testDetectDraft7() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}");
+        // When
+        SpecVersion.VersionFlag flag = SpecVersionDetector.detect(node);
+        // Then
+        assertEquals(SpecVersion.VersionFlag.V7, flag);
+    }
+
+    @Test
+    void testDetectDraft4() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"http://json-schema.org/draft-04/schema#\"}");
+        // When
+        SpecVersion.VersionFlag flag = SpecVersionDetector.detect(node);
+        // Then
+        assertEquals(SpecVersion.VersionFlag.V4, flag);
+    }
+
+    @Test
+    void testDetectVersion201909() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2019-09/schema\"}");
+        // When
+        SpecVersion.VersionFlag flag = SpecVersionDetector.detect(node);
+        // Then
+        assertEquals(SpecVersion.VersionFlag.V201909, flag);
+    }
+
+    @Test
+    void testDetectUnsupportedUriThrowsException() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": \"unsupported-uri\"}");
+        // When & Then
+        assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detect(node);
+        });
+    }
+
+    @Test
+    void testDetectNullNodeThrowsNullPointerException() {
+        // When & Then
+        assertThrows(NullPointerException.class, () -> {
+            SpecVersionDetector.detect(null);
+        });
+    }
+
+    @Test
+    void testDetectNullSchemaTagValueThrowsException() throws Exception {
+        // Given
+        JsonNode node = mapper.readTree("{\"$schema\": null}");
+        // When & Then
+        assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detect(node);
+        });
+    }
+}
+
+```

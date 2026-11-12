@@ -312,7 +312,7 @@ MARKER = re.compile(r"^\s*(?:\*\*|__|`)?###Test (START|END)#{2,3}(?:\*\*|__|`)?\
 
 def extract_test(text):
     """Code between ###Test START## and ###Test END##; otherwise the longest fenced block that
-    looks like a JUnit test. Markdown fence lines are dropped. Returns None if nothing is found."""
+    looks like a JUnit test (has @Test, @ParameterizedTest, @TestFactory or @RepeatedTest). Markdown fence lines are dropped. Returns None if nothing is found."""
     lines = text.splitlines()
     start = next((i for i, l in enumerate(lines) if (m := MARKER.match(l)) and m[1] == "START"), None)
     end = next((i for i in range(start + 1, len(lines)) if (m := MARKER.match(lines[i])) and m[1] == "END"),
@@ -326,7 +326,7 @@ def extract_test(text):
                 if cur is None:
                     cur = []
                 else:
-                    if "@Test" in "\n".join(cur):
+                    if re.search(r"@(Test|ParameterizedTest|TestFactory|RepeatedTest)\b", "\n".join(cur)):
                         blocks.append(cur)
                     cur = None
             elif cur is not None:

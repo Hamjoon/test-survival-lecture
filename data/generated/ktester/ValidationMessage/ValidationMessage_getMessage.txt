@@ -1,0 +1,49 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getMessage_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testGetMessage() {
+        // Test case 1: Test getMessage when message is not set.
+        // Given
+        // message is null by default
+        // When
+        String actualMessage = validationMessage.getMessage();
+        // Then
+        assertNull(actualMessage, "Expected message to be null when not set.");
+        // Test case 2: Test getMessage when message is explicitly set to a valid string.
+        // Given
+        String expectedMessage = "Validation failed";
+        validationMessage.setMessage(expectedMessage);
+        // When
+        actualMessage = validationMessage.getMessage();
+        // Then
+        assertEquals(expectedMessage, actualMessage, "Expected message to match the set string.");
+        // Test case 3: Test getMessage when message is set to an empty string.
+        // Given
+        String emptyMessage = "";
+        validationMessage.setMessage(emptyMessage);
+        // When
+        actualMessage = validationMessage.getMessage();
+        // Then
+        assertEquals(emptyMessage, actualMessage, "Expected message to be an empty string.");
+    }
+}
+
+```

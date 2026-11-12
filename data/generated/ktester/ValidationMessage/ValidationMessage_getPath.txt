@@ -1,0 +1,44 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+// Add other imports if necessary
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getPath_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testGetPath() {
+        // Given
+        String expectedPath = "$.property";
+        validationMessage.setPath(expectedPath);
+        // When
+        String actualPath = validationMessage.getPath();
+        // Then
+        assertEquals(expectedPath, actualPath);
+    }
+
+    @Test
+    void testGetPath_Null() {
+        // Given
+        // The path field is not set and remains null by default
+        // When
+        String actualPath = validationMessage.getPath();
+        // Then
+        assertNull(actualPath, "Test getPath when the path field is not set (null).");
+    }
+}
+
+```
