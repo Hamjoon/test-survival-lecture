@@ -1,0 +1,119 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Optional;
+
+@ExtendWith(MockitoExtension.class)
+class SpecVersionDetector_detectVersionFromPath_Test {
+
+    @BeforeAll
+    static void setupBeforeAll() {
+        // Initialize supported versions for testing path-based detection if needed
+        SpecVersionDetector.supportedVersions.put("draft4", SpecVersion.VersionFlag.V4);
+        SpecVersionDetector.supportedVersions.put("draft6", SpecVersion.VersionFlag.V6);
+        SpecVersionDetector.supportedVersions.put("draft7", SpecVersion.VersionFlag.V7);
+        SpecVersionDetector.supportedVersions.put("draft2019-09", SpecVersion.VersionFlag.V201909);
+        SpecVersionDetector.supportedVersions.put("draft2020-12", SpecVersion.VersionFlag.V202012);
+        SpecVersionDetector.supportedVersions.put("v7", SpecVersion.VersionFlag.V7);
+        SpecVersionDetector.supportedVersions.put("draft-04", SpecVersion.VersionFlag.V4);
+    }
+
+    @AfterAll
+    static void teardownAfterAll() {
+        SpecVersionDetector.supportedVersions.clear();
+    }
+
+    @Test
+    void detectVersionFromPath_ValidPath_ReturnsVersionFlag() {
+        // Given
+        Path path = Paths.get("base", "draft7", "schema.json");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(SpecVersion.VersionFlag.V7, result.get());
+    }
+
+    @Test
+    void detectVersionFromPath_InvalidPath_ReturnsEmpty() {
+        // Given
+        Path path = Paths.get("base", "unknown", "schema.json");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertEquals(Optional.empty(), result);
+    }
+
+    @Test
+    void detectVersionFromPath_NullPath_ThrowsNullPointerException() {
+        // Given
+        Path path = null;
+        // When & Then
+        assertThrows(NullPointerException.class, () -> {
+            SpecVersionDetector.detectVersionFromPath(path);
+        });
+    }
+
+    @Test
+    void detectVersionFromPath_PathWithoutVersion_ReturnsEmpty() {
+        // Given
+        Path path = Paths.get("unknown/path/without/version");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertEquals(Optional.empty(), result);
+    }
+
+    @Test
+    void detectVersionFromPath_PathWithSupportedVersionKey_ReturnsVersionFlag() {
+        // Given
+        Path path = Paths.get("v7/schema.json");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(SpecVersion.VersionFlag.V7, result.get());
+    }
+
+    @Test
+    void detectVersionFromPath_Draft04Path_ReturnsVersionFlagV4() {
+        // Given
+        Path path = Paths.get("draft-04/schema.json");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(SpecVersion.VersionFlag.V4, result.get());
+    }
+
+    @Test
+    void detectVersionFromPath_Draft202012Path_ReturnsVersionFlagV202012() {
+        // Given
+        Path path = Paths.get("draft2020-12/schema.json");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(SpecVersion.VersionFlag.V202012, result.get());
+    }
+
+    @Test
+    void detectVersionFromPath_EmptyPath_ReturnsEmpty() {
+        // Given
+        Path path = Paths.get("");
+        // When
+        Optional<SpecVersion.VersionFlag> result = SpecVersionDetector.detectVersionFromPath(path);
+        // Then
+        assertEquals(Optional.empty(), result);
+    }
+}
+
+```

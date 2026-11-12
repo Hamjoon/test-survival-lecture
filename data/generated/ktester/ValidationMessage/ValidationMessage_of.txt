@@ -1,0 +1,110 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.text.MessageFormat;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_of_Test {
+
+    @Mock
+    private ErrorMessageType errorMessageType;
+
+    private MessageFormat messageFormat;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        messageFormat = new MessageFormat("Test message {0}");
+    }
+
+    @Test
+    void testOfMethod() {
+        // Given
+        String type = "type";
+        String at = "at";
+        String schemaPath = "schemaPath";
+        String[] arguments = new String[] { "arg1" };
+        when(errorMessageType.getCustomMessage()).thenReturn("Custom Message");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+    }
+
+    @Test
+    void testOfWithNullErrorMessageTypeThrowsException() {
+        // Given
+        String type = "type";
+        String at = "#";
+        String schemaPath = "#/properties/test";
+        String[] arguments = new String[] {};
+        // When & Then
+        // Calling 'of' with null ErrorMessageType throws NullPointerException due to invocation of errorMessageType.getCustomMessage()
+        assertThrows(NullPointerException.class, () -> {
+            ValidationMessage.of(type, null, messageFormat, at, schemaPath, arguments);
+        });
+    }
+
+    @Test
+    void testOfWithValidParametersAndMultipleArguments() {
+        // Given
+        String type = "type";
+        String at = "#";
+        String schemaPath = "#/properties/test";
+        String[] arguments = new String[] { "arg1", "arg2" };
+        messageFormat = new MessageFormat("Test message {0} and {1}");
+        when(errorMessageType.getCustomMessage()).thenReturn("Custom Message");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertNotNull(validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithNullArgumentsThrowsExceptionOrHandled() {
+        // Given
+        String type = "type";
+        String at = "#";
+        String schemaPath = "#/properties/test";
+        String[] arguments = null;
+        when(errorMessageType.getCustomMessage()).thenReturn("Custom Message");
+        // When & Then
+        // Calling 'of' with null arguments array can lead to NullPointerException when formatting or processing arguments.
+        assertThrows(NullPointerException.class, () -> {
+            ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, arguments);
+        });
+    }
+
+    @Test
+    void testOfWithNullArgumentsHandledSuccessfully() {
+        // Given
+        String type = "type";
+        String at = "#";
+        String schemaPath = "#/properties/test";
+        String[] arguments = null;
+        when(errorMessageType.getCustomMessage()).thenReturn("Custom Message");
+        // When & Then
+        // Calling 'of' with null arguments array is handled gracefully by the implementation without throwing an exception.
+        ValidationMessage validationMessage = ValidationMessage.of(type, errorMessageType, messageFormat, at, schemaPath, arguments);
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+    }
+}
+
+```

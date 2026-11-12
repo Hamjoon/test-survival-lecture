@@ -1,0 +1,163 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.text.MessageFormat;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_ofWithCustom_Test {
+
+    @Mock
+    private ErrorMessageType errorMessageType;
+
+    @Test
+    void testOfWithCustom() {
+        // Given
+        String type = "type";
+        MessageFormat messageFormat = new MessageFormat("{0} - {1}");
+        String customMessage = "Custom message";
+        String at = "$.property";
+        String schemaPath = "#/properties/property";
+        String[] arguments = new String[] { "arg1" };
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, messageFormat, customMessage, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertEquals(customMessage, validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_NullMessageFormat() {
+        // Given: Test ofWithCustom when messageFormat is null, covering the branch where format is null.
+        String type = "type1";
+        String customMessage = "custom message";
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        String[] arguments = new String[] { "arg1" };
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, null, customMessage, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertNull(validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_NullArguments() {
+        // Given: Test ofWithCustom when messageFormat is not null, arguments is null, and customMessage is present.
+        String type = "type1";
+        MessageFormat messageFormat = new MessageFormat("{0}");
+        String customMessage = "custom message";
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, messageFormat, customMessage, at, schemaPath, (String[]) null);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertNull(validationMessage.getArguments());
+        assertEquals(customMessage, validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_BlankCustomMessageWithArguments() {
+        // Given: Test ofWithCustom when customMessage is blank and arguments are provided, covering formatted message branch.
+        String type = "type1";
+        MessageFormat messageFormat = new MessageFormat("{0} : {1} : {2}");
+        String customMessage = "";
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        String[] arguments = new String[] { "arg1", "arg2" };
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, messageFormat, customMessage, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertEquals("/path : arg1 : arg2", validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_EmptyArguments() {
+        // Given: Test ofWithCustom when messageFormat is not null, arguments is empty, and customMessage is present.
+        String type = "type1";
+        MessageFormat messageFormat = new MessageFormat("{0}");
+        String customMessage = "custom message";
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        String[] arguments = new String[] {};
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, messageFormat, customMessage, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertEquals(customMessage, validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_NullCustomMessageWithArguments() {
+        // Given: Test ofWithCustom when customMessage is null and arguments are provided.
+        String type = "type1";
+        MessageFormat messageFormat = new MessageFormat("{0} : {1}");
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        String[] arguments = new String[] { "arg1" };
+        when(errorMessageType.getErrorCode()).thenReturn("ERR001");
+        // When
+        ValidationMessage validationMessage = ValidationMessage.ofWithCustom(type, errorMessageType, messageFormat, null, at, schemaPath, arguments);
+        // Then
+        assertNotNull(validationMessage);
+        assertEquals(type, validationMessage.getType());
+        assertEquals("ERR001", validationMessage.getCode());
+        assertEquals(at, validationMessage.getPath());
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+        assertArrayEquals(arguments, validationMessage.getArguments());
+        assertEquals("/path : arg1", validationMessage.getMessage());
+    }
+
+    @Test
+    void testOfWithCustom_NullErrorMessageTypeException() {
+        // Given: Test ofWithCustom when errorMessageType is null, triggering NullPointerException when calling errorMessageType.getErrorCode().
+        String type = "type1";
+        MessageFormat messageFormat = new MessageFormat("{0}");
+        String customMessage = "custom message";
+        String at = "/path";
+        String schemaPath = "/schemaPath";
+        String[] arguments = new String[] {};
+        // When & Then
+        assertThrows(NullPointerException.class, () -> {
+            ValidationMessage.ofWithCustom(type, null, messageFormat, customMessage, at, schemaPath, arguments);
+        });
+    }
+}
+
+```

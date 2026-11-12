@@ -1,0 +1,64 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_setSchemaPath_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testSetSchemaPath() {
+        // given
+        String schemaPath = "#/properties/field/schemaPath";
+        // when
+        validationMessage.setSchemaPath(schemaPath);
+        // then
+        assertEquals(schemaPath, validationMessage.getSchemaPath());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "#/properties/name", "#", "#/$defs/customType" })
+    void testSetSchemaPath_ValidValues(String schemaPath) {
+        // given / when
+        validationMessage.setSchemaPath(schemaPath);
+        // then
+        assertEquals(schemaPath, validationMessage.getSchemaPath(), "Verify that schemaPath is correctly set to the expected string");
+    }
+
+    @Test
+    void testSetSchemaPath_Null() {
+        // given
+        String schemaPath = null;
+        // when
+        validationMessage.setSchemaPath(schemaPath);
+        // then
+        assertNull(validationMessage.getSchemaPath(), "Verify that schemaPath is correctly set to null");
+    }
+
+    @Test
+    void testSetSchemaPath_EmptyString() {
+        // given
+        String schemaPath = "";
+        // when
+        validationMessage.setSchemaPath(schemaPath);
+        // then
+        assertEquals(schemaPath, validationMessage.getSchemaPath(), "Verify that schemaPath is correctly set to an empty string");
+    }
+}
+
+```

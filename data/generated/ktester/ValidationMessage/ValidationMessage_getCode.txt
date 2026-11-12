@@ -1,0 +1,65 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getCode_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testGetCode() {
+        // Given
+        String expectedCode = "1001";
+        validationMessage.setCode(expectedCode);
+        // When
+        String actualCode = validationMessage.getCode();
+        // Then
+        assertEquals(expectedCode, actualCode);
+    }
+
+    @Test
+    void testGetCodeWhenCodeIsNotSet() {
+        // Given: The code field is not set (default state)
+        // When: getCode is invoked
+        String actualCode = validationMessage.getCode();
+        // Then: The returned code should be null
+        assertNull(actualCode, "Expected code to be null when not set.");
+    }
+
+    @Test
+    void testGetCodeWhenCodeIsSetToValidValue() {
+        // Given: The code field is set to a valid string value
+        String expectedCode = "1001";
+        validationMessage.setCode(expectedCode);
+        // When: getCode is invoked
+        String actualCode = validationMessage.getCode();
+        // Then: The returned code should match the set value
+        assertEquals(expectedCode, actualCode, "Expected code to match the set valid string.");
+    }
+
+    @Test
+    void testGetCodeWhenCodeIsSetToEmptyString() {
+        // Given: The code field is set to an empty string
+        String expectedCode = "";
+        validationMessage.setCode(expectedCode);
+        // When: getCode is invoked
+        String actualCode = validationMessage.getCode();
+        // Then: The returned code should be an empty string
+        assertEquals(expectedCode, actualCode, "Expected code to be an empty string.");
+    }
+}
+```

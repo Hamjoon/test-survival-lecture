@@ -1,0 +1,64 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getSchemaPath_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @Test
+    void testGetSchemaPath() {
+        // Given
+        String expectedSchemaPath = "#/properties/username";
+        validationMessage.setSchemaPath(expectedSchemaPath);
+        // When
+        String actualSchemaPath = validationMessage.getSchemaPath();
+        // Then
+        assertEquals(expectedSchemaPath, actualSchemaPath);
+    }
+
+    @Test
+    void testGetSchemaPath_whenNotSet_shouldReturnNull() {
+        // Given: schemaPath is not set and remains null by default
+        // When
+        String actualSchemaPath = validationMessage.getSchemaPath();
+        // Then
+        assertNull(actualSchemaPath, "Test getSchemaPath when schemaPath is not set and remains null.");
+    }
+
+    @Test
+    void testGetSchemaPath_whenSetToValidString_shouldReturnExpected() {
+        // Given
+        String expectedSchemaPath = "#/properties/age/maximum";
+        validationMessage.setSchemaPath(expectedSchemaPath);
+        // When
+        String actualSchemaPath = validationMessage.getSchemaPath();
+        // Then
+        assertEquals(expectedSchemaPath, actualSchemaPath, "Test getSchemaPath when schemaPath is set to a valid non-empty string.");
+    }
+
+    @Test
+    void testGetSchemaPath_whenSetToEmptyString_shouldReturnEmptyString() {
+        // Given
+        String expectedSchemaPath = "";
+        validationMessage.setSchemaPath(expectedSchemaPath);
+        // When
+        String actualSchemaPath = validationMessage.getSchemaPath();
+        // Then
+        assertEquals(expectedSchemaPath, actualSchemaPath, "Test getSchemaPath when schemaPath is set to an empty string.");
+    }
+}
+
+```

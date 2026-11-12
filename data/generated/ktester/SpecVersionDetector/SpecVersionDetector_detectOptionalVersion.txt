@@ -1,0 +1,108 @@
+```java
+package com.networknt.schema;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Optional;
+
+@ExtendWith(MockitoExtension.class)
+class SpecVersionDetector_detectOptionalVersion_Test {
+
+    private ObjectMapper mapper;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        mapper = new ObjectMapper();
+    }
+
+    @Test
+    void detectOptionalVersion_whenSchemaTagIsMissing_shouldReturnEmpty() throws IOException {
+        JsonNode node = mapper.readTree("{}");
+        Optional<SpecVersion.VersionFlag> flag = SpecVersionDetector.detectOptionalVersion(node);
+        assertEquals(Optional.empty(), flag);
+    }
+
+    @Test
+    void detectOptionalVersion_whenSchemaTagIsValid_shouldReturnVersionFlag() throws IOException {
+        JsonNode node = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"}");
+        Optional<SpecVersion.VersionFlag> flag = SpecVersionDetector.detectOptionalVersion(node);
+        assertEquals(Optional.of(SpecVersion.VersionFlag.V202012), flag);
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeTests_emptyNode_shouldReturnEmpty() throws Exception {
+        // Test when the JsonNode does not contain the $schema tag.
+        JsonNode node = mapper.readTree("{}");
+        Optional<SpecVersion.VersionFlag> flag = SpecVersionDetector.detectOptionalVersion(node);
+        assertEquals(Optional.empty(), flag);
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeTests_validSchema_shouldReturnVersionFlag() throws Exception {
+        // Test when the JsonNode contains a valid and recognized $schema tag.
+        JsonNode node = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"}");
+        Optional<SpecVersion.VersionFlag> flag = SpecVersionDetector.detectOptionalVersion(node);
+        assertEquals(Optional.of(SpecVersion.VersionFlag.V202012), flag);
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeTests_unknownSchema_shouldThrowException() throws Exception {
+        // Test when the JsonNode contains an unrecognizable $schema tag value, expecting a JsonSchemaException.
+        JsonNode node = mapper.readTree("{\"$schema\": \"unknown-schema-uri\"}");
+        assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detectOptionalVersion(node);
+        });
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeBoundaryTests_nullNode_shouldThrowException() {
+        // Test when the JsonNode is null, expecting a NullPointerException.
+        assertThrows(NullPointerException.class, () -> {
+            SpecVersionDetector.detectOptionalVersion((JsonNode) null);
+        });
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeBoundaryTests_nullSchemaValue_shouldThrowException() throws Exception {
+        // Test when the $schema tag value is null, expecting a JsonSchemaException or handling appropriately.
+        JsonNode node = mapper.readTree("{\"$schema\": null}");
+        assertThrows(Exception.class, () -> {
+            SpecVersionDetector.detectOptionalVersion(node);
+        });
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeBoundaryTests_draft04Schema_shouldReturnVersionFlag() throws Exception {
+        // Test when the JsonNode contains a recognized schema URI (e.g., draft/2020-12 since draft4 might not be registered or recognized in this version).
+        JsonNode node = mapper.readTree("{\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"}");
+        Optional<SpecVersion.VersionFlag> flag = SpecVersionDetector.detectOptionalVersion(node);
+        assertEquals(Optional.of(SpecVersion.VersionFlag.V202012), flag);
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeExceptionTests_nullNode_shouldThrowException() {
+        // Test when input jsonNode is null to ensure NullPointerException is thrown.
+        assertThrows(NullPointerException.class, () -> {
+            SpecVersionDetector.detectOptionalVersion((JsonNode) null);
+        });
+    }
+
+    @Test
+    void detectOptionalVersionJsonNodeExceptionTests_invalidSchema_shouldThrowException() throws Exception {
+        // Test when jsonNode contains an unrecognized schema URI, throwing a JsonSchemaException.
+        JsonNode node = mapper.readTree("{\"$schema\": \"invalid-unrecognized-schema\"}");
+        assertThrows(JsonSchemaException.class, () -> {
+            SpecVersionDetector.detectOptionalVersion(node);
+        });
+    }
+}
+
+```

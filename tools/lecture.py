@@ -6,7 +6,6 @@ weekly experiment: build production code, compile tests, run test methods, measu
 import json, os, pathlib, re, shutil, subprocess, sys, xml.etree.ElementTree as ET
 
 IN_COLAB = "google.colab" in sys.modules
-JDK17 = "/usr/lib/jvm/java-17-openjdk-amd64"
 REPO = pathlib.Path(__file__).resolve().parent.parent          # the lecture repository
 WORK = pathlib.Path("/content/lecture" if IN_COLAB else os.path.expanduser("~/lecture-work"))
 LIB = WORK / "lib"
@@ -17,7 +16,7 @@ JSV = WORK / "json-schema-validator"
 JSV_URL = "https://github.com/networknt/json-schema-validator.git"
 T_TAG = "1.1.0"
 PKG_DIR = "com/networknt/schema"
-TARGETS = ["AnyOfValidator", "OneOfValidator"]
+TARGETS = ["ValidationMessage", "SpecVersionDetector"]
 
 LAUNCHER = JACOCO_AGENT = JACOCO_CLI = None
 TEST_LIBS = []
@@ -50,17 +49,31 @@ def sh(cmd, check=True, quiet=False):
     return out
 
 
-def install_java():
-    """Install JDK 17 and Maven on Colab and put JDK 17 first on PATH."""
-    if not IN_COLAB:
+JDK_URL = "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse"
+MAVEN_URL = "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.tar.gz"
+
+
+def install_java(force=False):
+    """Download JDK 17 (Temurin) and Maven 3.9 as archives and unpack them (Colab only).
+    This is faster than apt, which refreshes all package lists and installs many extra packages."""
+    import time
+    t0 = time.time()
+    tools = WORK / "jdk-maven"
+    if not IN_COLAB and not force:
         print("주의: 이 노트북은 Colab 기준입니다. 다른 환경에서는 JDK 17과 Maven이 미리 설치돼 있어야 합니다.")
-    if IN_COLAB and not (os.path.isdir(JDK17) and shutil.which("mvn")):
-        sh("apt-get update -qq && apt-get install -y -qq openjdk-17-jdk-headless maven > /dev/null", quiet=True)
-    if os.path.isdir(JDK17):
-        os.environ["JAVA_HOME"] = JDK17
-        os.environ["PATH"] = f"{JDK17}/bin:" + os.environ["PATH"]
+    elif not (tools / "jdk").exists() or not (tools / "maven").exists():
+        tools.mkdir(parents=True, exist_ok=True)
+        for name, url in (("jdk", JDK_URL), ("maven", MAVEN_URL)):
+            d = tools / name
+            shutil.rmtree(d, ignore_errors=True)
+            d.mkdir()
+            sh(f"curl -sSfL '{url}' | tar xz -C {d} --strip-components=1", quiet=True)
+    if (tools / "jdk").exists():
+        os.environ["JAVA_HOME"] = str(tools / "jdk")
+        os.environ["PATH"] = f"{tools / 'jdk'}/bin:{tools / 'maven'}/bin:" + os.environ["PATH"]
     print(sh("java -version 2>&1 | grep -i 'version'", quiet=True))
-    print(sh("mvn -v 2>&1 | head -1", quiet=True))
+    print(sh("mvn -v 2>&1 | grep -i 'apache maven'", quiet=True))
+    print(f"({time.time() - t0:.0f}초)")
 
 
 def setup_tools():
@@ -103,17 +116,17 @@ def run_methods(classpath, methods, jacoco_exec=None, cwd=None):
     r = subprocess.run(cmd, cwd=cwd or JSV, text=True, capture_output=True, timeout=1800)
     res = {}
     for line in r.stdout.splitlines():
-        if "\t" in line:
-            st, m = line.split("\t")
-            res[m] = st
+        parts = line.split("\t")
+        if len(parts) == 2 and parts[0] in ("pass", "fail", "skip", "absent"):
+            res[parts[1]] = parts[0]          # other lines are output printed by the tests
     return res
 
 
 def line_coverage(jacoco_exec, classes_dir, source_dir):
     """{(package/File.java, line): covered?} for every executable line, from a JaCoCo exec file."""
     xml_path = pathlib.Path(jacoco_exec).with_suffix(".xml")
-    sh(f"java -jar {JACOCO_CLI} report {jacoco_exec} --classfiles {classes_dir} "
-       f"--sourcefiles {source_dir} --xml {xml_path}", quiet=True)
+    subprocess.run(["java", "-jar", JACOCO_CLI, "report", str(jacoco_exec), "--classfiles", str(classes_dir),
+                    "--sourcefiles", str(source_dir), "--xml", str(xml_path)], check=True, capture_output=True)
     lines = {}
     for pkg in ET.parse(xml_path).getroot().iter("package"):
         for sf in pkg.iter("sourcefile"):
@@ -176,6 +189,22 @@ def load_dev_scope():
     return json.loads((REPO / "data/json-schema-validator/dev-scope.json").read_text())
 
 
+def first_error(err, path=None):
+    """First compile error of a file (or of the whole output), with the missing symbol if any."""
+    lines = err.splitlines()
+    for i, l in enumerate(lines):
+        if "error:" in l and (path is None or l.startswith(str(path))):
+            msg = l.split("error:", 1)[1].strip()
+            if msg == "cannot find symbol":
+                sym = next((x.split("symbol:", 1)[1].strip() for x in lines[i + 1:i + 4] if "symbol:" in x), "")
+                msg = f"{msg}: {sym}"
+            return msg
+    return ""
+
+
+DEV_COMPILE_ERRORS = {}
+
+
 def compile_dev_tests(prod_classes, classpath, out_dir):
     """Compile t's Dev test sources (unchanged) against the given production classes.
     Files that fail are dropped and the rest is compiled again, until it compiles.
@@ -184,9 +213,11 @@ def compile_dev_tests(prod_classes, classpath, out_dir):
     src = out_dir.parent / (out_dir.name + "-src")
     for d in (out_dir, src):
         shutil.rmtree(d, ignore_errors=True)
-    shutil.copytree(JSV / "src/test/resources", out_dir)
+    shutil.copytree(JSV / "src/test/resources", out_dir)            # test resources, as in pom.xml
+    shutil.copytree(JSV / "src/test/suite", out_dir, dirs_exist_ok=True)
     shutil.copytree(JSV / "src/test/java", src)
     dropped = set()
+    DEV_COMPILE_ERRORS.clear()
     while True:
         ok, err = compile_java(src, out_dir, [prod_classes] + list(classpath) + [LAUNCHER])
         if ok:
@@ -196,7 +227,9 @@ def compile_dev_tests(prod_classes, classpath, out_dir):
             raise RuntimeError(err[-2000:])
         for b in bad:
             p = pathlib.Path(b)
-            dropped.add(str(p.relative_to(src).with_suffix("")).replace("/", "."))
+            fq = str(p.relative_to(src).with_suffix("")).replace("/", ".")
+            dropped.add(fq)
+            DEV_COMPILE_ERRORS[fq] = first_error(err, b)
             p.unlink()
 
 
@@ -220,7 +253,7 @@ GEN = WORK / "generated"
 _last_call = [0.0]
 
 
-def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0, tries=5):
+def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0, tries=5, json_mode=False):
     """One Gemini call. Waits between calls to stay under the free-tier per-minute limit.
     Retries when the per-minute limit is hit (HTTP 429) or the model is busy (HTTP 5xx, e.g.
     "high demand"), waiting 30, 60, 90 ... seconds."""
@@ -234,7 +267,8 @@ def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_inter
         try:
             r = client.models.generate_content(
                 model=model, contents=prompt,
-                config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens))
+                config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens,
+                                                   response_mime_type="application/json" if json_mode else None))
             return r.text or ""
         except (errors.ClientError, errors.ServerError) as e:
             code = getattr(e, "code", None)
@@ -297,7 +331,7 @@ MARKER = re.compile(r"^\s*(?:\*\*|__|`)?###Test (START|END)#{2,3}(?:\*\*|__|`)?\
 
 def extract_test(text):
     """Code between ###Test START## and ###Test END##; otherwise the longest fenced block that
-    looks like a JUnit test. Markdown fence lines are dropped. Returns None if nothing is found."""
+    looks like a JUnit test (has @Test, @ParameterizedTest, @TestFactory or @RepeatedTest). Markdown fence lines are dropped. Returns None if nothing is found."""
     lines = text.splitlines()
     start = next((i for i, l in enumerate(lines) if (m := MARKER.match(l)) and m[1] == "START"), None)
     end = next((i for i in range(start + 1, len(lines)) if (m := MARKER.match(lines[i])) and m[1] == "END"),
@@ -311,7 +345,7 @@ def extract_test(text):
                 if cur is None:
                     cur = []
                 else:
-                    if "@Test" in "\n".join(cur):
+                    if re.search(r"@(Test|ParameterizedTest|TestFactory|RepeatedTest)\b", "\n".join(cur)):
                         blocks.append(cur)
                     cur = None
             elif cur is not None:
@@ -403,7 +437,215 @@ def show_table(rows):
     try:
         import pandas as pd
         from IPython.display import display
-        display(pd.DataFrame(rows).fillna(""))
+        with pd.option_context("display.max_colwidth", None):
+            display(pd.DataFrame(rows).fillna(""))
     except ImportError:
         for r in rows:
             print(r)
+
+
+# ------------------------------------------------------------------ survival over commits
+COMMITS = [("#4", "5a94df7e914b90c185fb573b6e7a6b3fb5f2460b", "path 리팩토링"),
+           ("#10", "7f1ec11b7a4b391577595e0d31d5825548c9a64f", "Draft 2020-12 지원, schema 조회 리팩토링"),
+           ("#151", "e880dd0aa16a52098aa6eea25d688275ac1590d9", "2.x 대규모 리팩토링")]
+
+
+def _artifact(jar):
+    """Artifact name of a jar file name without its version (jackson-core-2.15.3.jar -> jackson-core)."""
+    return re.sub(r"-\d.*$", "", os.path.basename(jar))
+
+
+def _slug(name):
+    """File-name-safe group name (Dev(scope) -> devscope, Ouédraogo -> ouedraogo)."""
+    import unicodedata
+    return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower())
+
+
+def merge_classpath(commit_cp, t_cp):
+    """The commit's dependencies, plus t's test-only dependencies the commit no longer declares."""
+    have = {_artifact(j) for j in commit_cp}
+    return list(commit_cp) + [j for j in t_cp if _artifact(j) not in have]
+
+
+def build_commit(label, sha):
+    """Check out a commit next to t (git worktree) and compile its production code."""
+    d = WORK / "commits" / label.strip("#")
+    if not (d / ".git").exists():
+        shutil.rmtree(d, ignore_errors=True)
+        sh(f"git -C {JSV} worktree add -f --detach {d} {sha}", quiet=True)
+    return d, build_production(d)
+
+
+def changed_lines(sha, file_rel):
+    """Line numbers (in the commit's version) that the commit added or modified in one file."""
+    out = sh(f"git -C {JSV} diff -U0 {sha}^ {sha} -- {file_rel}", quiet=True)
+    lines = set()
+    for m in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", out, re.M):
+        start, n = int(m[1]), int(m[2] if m[2] is not None else 1)
+        lines.update(range(start, start + n))
+    return lines
+
+
+def _key(m):
+    """A generated method is identified by its file and its name: two prompts can produce the same
+    class and method name in different files."""
+    return f"{m.get('dir', '')}|{m['method']}"
+
+
+def run_groups_at(commit_dir, commit_cp, groups, alive, t_cp, exec_dir):
+    """Run every group's alive methods at one commit, unchanged test sources from t.
+    Returns ({group: {key: pass|fail|compile-fail}}, {group: {test file: first compile error}}).
+    JaCoCo data goes to exec_dir/<group>.exec."""
+    prod = commit_dir / "target/classes"
+    cp = merge_classpath(commit_cp, t_cp)
+    exec_dir.mkdir(parents=True, exist_ok=True)
+    results, errors = {}, {}
+    for g, members in groups.items():
+        ex = exec_dir / f"{_slug(g)}.exec"
+        ex.unlink(missing_ok=True)
+        todo = [m for m in members if _key(m) in alive[g]]
+        res = {}
+        errs = errors.setdefault(g, {})
+        if g == "Dev(scope)":
+            dropped = compile_dev_tests(prod, cp, exec_dir / "dev-test-classes")
+            errs.update({f: DEV_COMPILE_ERRORS.get(f, "") for f in {m["method"].split("#")[0] for m in todo} & dropped})
+            ok = [m for m in todo if m["method"].split("#")[0] not in dropped]
+            ran = run_methods([exec_dir / "dev-test-classes", prod] + cp, [m["method"] for m in ok], ex)
+            for m in todo:
+                res[_key(m)] = "compile-fail" if m not in ok else ran.get(m["method"], "fail")
+        else:
+            by_dir = {}
+            for m in todo:
+                by_dir.setdefault(m["dir"], []).append(m)
+            for d, ms in by_dir.items():
+                out = exec_dir / _slug(g) / pathlib.Path(d).name
+                shutil.rmtree(out, ignore_errors=True)
+                ok, err = compile_java(pathlib.Path(d) / "src", out, [prod] + cp + TEST_LIBS)
+                if not ok:
+                    errs[pathlib.Path(d).name] = first_error(err)
+                ran = run_methods([out, prod] + cp + TEST_LIBS, [m["method"] for m in ms], ex) if ok else {}
+                for m in ms:
+                    res[_key(m)] = ran.get(m["method"], "fail") if ok else "compile-fail"
+        results[g] = res
+    return results, errors
+
+
+def survive(groups, t_cp):
+    """Cumulative survival at the three commits: a method that breaks once stays broken.
+    Also changed-line coverage of the two target classes and the compile errors at each commit."""
+    alive = {g: {_key(m) for m in ms} for g, ms in groups.items()}
+    first_failure = {g: {} for g in groups}
+    survival = [{"commit": "t", "날짜": "2023-12-15", **{g: len(a) for g, a in alive.items()}}]
+    coverage, compile_errors = [], {}
+    for label, sha, desc in COMMITS:
+        print(f"{label} {sha[:7]} {desc}: 빌드", end="", flush=True)
+        d, cp = build_commit(label, sha)
+        print(", 실행", end="", flush=True)
+        run_dir = WORK / "commits" / f"run-{label.strip('#')}"
+        res, errors = run_groups_at(d, cp, groups, alive, t_cp, run_dir)
+        compile_errors[label] = errors
+        for g, r in res.items():
+            for k, st in r.items():
+                if st != "pass":
+                    alive[g].discard(k)
+                    first_failure[g].setdefault(k, (label, "컴파일 실패" if st == "compile-fail" else "실행 실패"))
+        date = sh(f"git -C {JSV} log -1 --format=%ad --date=short {sha}", quiet=True)
+        survival.append({"commit": label, "날짜": date, **{g: len(a) for g, a in alive.items()}})
+        # changed-line coverage: lines this commit added or modified in the target classes,
+        # executed by the tests that entered this commit (alive before it)
+        row, total = {"commit": label}, 0
+        hits = {g: 0 for g in groups}
+        for c in TARGETS:
+            rel = f"src/main/java/{PKG_DIR}/{c}.java"
+            if not (d / rel).exists():
+                continue
+            changed = changed_lines(sha, rel)
+            executable = None
+            for g in groups:
+                ex = run_dir / f"{_slug(g)}.exec"
+                lc = line_coverage(ex, d / "target/classes", d / "src/main/java") if ex.exists() else {}
+                mine = {ln: v for (f, ln), v in lc.items() if f == f"{PKG_DIR}/{c}.java"}
+                if executable is None and mine:
+                    executable = changed & set(mine)
+                hits[g] += sum(1 for ln in changed if mine.get(ln))
+            total += len(executable or set())
+        row["바뀐 실행 가능 줄"] = total
+        for g in groups:
+            row[g] = f"{hits[g]} ({hits[g] / total:.0%})" if total else "해당 없음"
+        coverage.append(row)
+        print(" 완료")
+    return survival, coverage, first_failure, compile_errors
+
+
+def survival_table(survival):
+    """Counts with percentages of the count at t."""
+    base = survival[0]
+    rows = []
+    for r in survival:
+        rows.append({k: (f"{v} ({v / base[k]:.0%})" if k not in ("commit", "날짜") and base[k] else v) for k, v in r.items()})
+    return rows
+
+
+def failure_table(first_failure, groups):
+    rows = []
+    for g in groups:
+        kinds = [k for _, k in first_failure[g].values()]
+        rows.append({"집단": g, "깨진 테스트": len(kinds), "컴파일 실패": kinds.count("컴파일 실패"),
+                     "실행 실패": kinds.count("실행 실패")})
+    return rows
+
+
+def compile_error_table(compile_errors, label, top=3):
+    """Per group: the most frequent first compile errors of the test files that failed at a commit."""
+    import collections
+    rows = []
+    for g, errs in compile_errors.get(label, {}).items():
+        for e, n in collections.Counter(e for e in errs.values() if e).most_common(top):
+            rows.append({"집단": g, "실패 파일 수(집단 전체)": len(errs), "첫 오류": e[:100], "이 오류인 파일": n})
+    return rows
+
+
+def removed_public_methods(label, class_name):
+    """Public methods of a target class that a commit removed (no public method of the same name is left)."""
+    sha = next(s for l, s, _ in COMMITS if l == label)
+    diff = sh(f"git -C {JSV} diff {sha}^ {sha} -- src/main/java/{PKG_DIR}/{class_name}.java", quiet=True)
+    sig = re.compile(r"^([-+])\s+public\s+(?:static\s+)?(?:final\s+)?(?:abstract\s+)?[\w<>\[\],.? ]+?\s+(\w+)\s*\(([^)]*)")
+    removed, added = [], set()
+    for line in diff.splitlines():
+        m = sig.match(line)
+        if m:
+            if m[1] == "-":
+                types = re.sub(r"\s+\w+\s*(?=,|$)", "", m[3].strip())      # drop parameter names
+                removed.append((m[2], f"{m[2]}({types})"))
+            else:
+                added.add(m[2])
+    return [full for name, full in removed if name not in added]
+
+
+def coverage_at_t(dev_methods, llm_groups, t_cp):
+    """Line coverage of the two target classes at t, per group (tests that passed at t)."""
+    cls, src = JSV / "target/classes", JSV / "src/main/java"
+    execs = {}
+    ex = WORK / "t" / "cov-devscope.exec"
+    ex.unlink(missing_ok=True)
+    run_methods([WORK / "t" / "dev-test-classes", cls] + list(t_cp), dev_methods, ex)
+    execs["Dev(scope)"] = ex
+    for g, kept in llm_groups.items():
+        ex = WORK / "t" / f"cov-{_slug(g)}.exec"
+        ex.unlink(missing_ok=True)
+        by_dir = {}
+        for m in kept:
+            by_dir.setdefault(m["dir"], []).append(m["method"])
+        for d, methods in by_dir.items():
+            run_methods([pathlib.Path(d) / "classes", cls] + list(t_cp) + TEST_LIBS, methods, ex)
+        execs[g] = ex
+    cov = {g: target_coverage(ex, cls, src) if ex.exists() else {} for g, ex in execs.items()}
+    rows = []
+    for c in TARGETS:
+        total = next((v[c][1] for v in cov.values() if c in v), 0)
+        row = {"클래스 (실행 가능한 줄)": f"{c} ({total})"}
+        for g in execs:
+            hit = cov[g].get(c, (0, total))[0]
+            row[g] = f"{hit} ({hit / total:.1%})" if total else "-"
+        rows.append(row)
+    return rows

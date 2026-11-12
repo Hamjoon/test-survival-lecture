@@ -1,0 +1,56 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.util.HashMap;
+import java.util.Map;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getDetails_Test {
+
+    private ValidationMessage validationMessage;
+
+    private Map<String, Object> details;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+        details = new HashMap<>();
+    }
+
+    @AfterEach
+    void teardownAfterEach() {
+        validationMessage = null;
+        details = null;
+    }
+
+    @Test
+    void testGetDetails() {
+        // Given
+        details.put("key", "value");
+        validationMessage.setDetails(details);
+        // When
+        Map<String, Object> result = validationMessage.getDetails();
+        // Then
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("value", result.get("key"));
+    }
+
+    @Test
+    void testGetDetailsWhenNull() {
+        // Given: details field is not set (remains null)
+        validationMessage.setDetails(null);
+        // When
+        Map<String, Object> result = validationMessage.getDetails();
+        // Then: verify that getDetails returns null as specified in the test case
+        assertNull(result, "Test getDetails when details field is null");
+    }
+}
+
+```

@@ -1,0 +1,42 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_getType_Test {
+
+    private ValidationMessage validationMessage;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        validationMessage = new ValidationMessage();
+    }
+
+    @AfterEach
+    void teardownAfterEach() {
+        validationMessage = null;
+    }
+
+    @Test
+    void testGetType() {
+        String expectedType = "required";
+        validationMessage.setType(expectedType);
+        String actualType = validationMessage.getType();
+        assertEquals(expectedType, actualType);
+    }
+
+    @Test
+    void testGetType_whenUninitialized() {
+        // Test getType when the type field is not initialized (should return null)
+        String actualType = validationMessage.getType();
+        assertNull(actualType, "The type should be null when not initialized.");
+    }
+}
+
+```

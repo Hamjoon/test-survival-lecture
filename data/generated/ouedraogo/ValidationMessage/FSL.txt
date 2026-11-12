@@ -1,0 +1,223 @@
+###Test START##
+package com.networknt.schema;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.junit.Test;
+
+public class ValidationMessageTest {
+
+    private enum TestErrorMessageType implements ErrorMessageType {
+        TEST_ERROR("1001", "Test custom message {0}");
+
+        private final String errorCode;
+        private final String customMessage;
+
+        TestErrorMessageType(String errorCode, String customMessage) {
+            this.errorCode = errorCode;
+            this.customMessage = customMessage;
+        }
+
+        @Override
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        @Override
+        public String getCustomMessage() {
+            return customMessage;
+        }
+    }
+
+    @Test
+    public void testGettersAndSetters() {
+        ValidationMessage message = new ValidationMessage();
+        
+        message.setCode("CODE1");
+        assertEquals("CODE1", message.getCode());
+
+        message.setPath("/path/to/input");
+        assertEquals("/path/to/input", message.getPath());
+
+        message.setSchemaPath("/path/to/schema");
+        assertEquals("/path/to/schema", message.getSchemaPath());
+
+        String[] args = new String[] { "arg1", "arg2" };
+        message.setArguments(args);
+        assertArrayEquals(args, message.getArguments());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        message.setDetails(details);
+        assertEquals(details, message.getDetails());
+
+        message.setMessage("Test message");
+        assertEquals("Test message", message.getMessage());
+        assertEquals("Test message", message.toString());
+
+        message.setType("type1");
+        assertEquals("type1", message.getType());
+    }
+
+    @Test
+    public void testEqualsAndHashCode() {
+        ValidationMessage msg1 = new ValidationMessage();
+        msg1.setType("type");
+        msg1.setCode("code");
+        msg1.setPath("path");
+        msg1.setSchemaPath("schemaPath");
+        msg1.setArguments(new String[]{"arg"});
+        Map<String, Object> details = new HashMap<>();
+        details.put("k", "v");
+        msg1.setDetails(details);
+        msg1.setMessage("message");
+
+        ValidationMessage msg2 = new ValidationMessage();
+        msg2.setType("type");
+        msg2.setCode("code");
+        msg2.setPath("path");
+        msg2.setSchemaPath("schemaPath");
+        msg2.setArguments(new String[]{"arg"});
+        Map<String, Object> details2 = new HashMap<>();
+        details2.put("k", "v");
+        msg2.setDetails(details2);
+        msg2.setMessage("message");
+
+        assertTrue(msg1.equals(msg1));
+        assertTrue(msg1.equals(msg2));
+        assertTrue(msg2.equals(msg1));
+        assertEquals(msg1.hashCode(), msg2.hashCode());
+
+        assertFalse(msg1.equals(null));
+        assertFalse(msg1.equals("some string"));
+
+        // Test differences in each field
+        ValidationMessage msgDiff;
+
+        msgDiff = copy(msg1);
+        msgDiff.setType("diff");
+        assertFalse(msg1.equals(msgDiff));
+
+        msgDiff = copy(msg1);
+        msgDiff.setCode("diff");
+        assertFalse(msg1.equals(msgDiff));
+
+        msgDiff = copy(msg1);
+        msgDiff.setPath("diff");
+        assertFalse(msg1.equals(msgDiff));
+
+        msgDiff = copy(msg1);
+        msgDiff.setSchemaPath("diff");
+        assertFalse(msg1.equals(msgDiff));
+
+        msgDiff = copy(msg1);
+        msgDiff.setDetails(null);
+        assertFalse(msg1.equals(msgDiff));
+        
+        ValidationMessage msgNullDetails = copy(msg1);
+        msgNullDetails.setDetails(null);
+        assertFalse(msgNullDetails.equals(msg1));
+
+        msgDiff = copy(msg1);
+        msgDiff.setArguments(new String[]{"diff"});
+        assertFalse(msg1.equals(msgDiff));
+
+        msgDiff = copy(msg1);
+        msgDiff.setMessage("diff");
+        assertFalse(msg1.equals(msgDiff));
+    }
+
+    private ValidationMessage copy(ValidationMessage original) {
+        ValidationMessage copy = new ValidationMessage();
+        copy.setType(original.getType());
+        copy.setCode(original.getCode());
+        copy.setPath(original.getPath());
+        copy.setSchemaPath(original.getSchemaPath());
+        copy.setArguments(original.getArguments());
+        copy.setDetails(original.getDetails());
+        copy.setMessage(original.getMessage());
+        return copy;
+    }
+
+    @Test
+    public void testOfMethods() {
+        MessageFormat format = new MessageFormat("Path: {0}, Arg: {1}");
+        
+        ValidationMessage vm1 = ValidationMessage.of(
+                "string", 
+                TestErrorMessageType.TEST_ERROR, 
+                format, 
+                "/at", 
+                "/schemaPath", 
+                "argument1"
+        );
+        assertNotNull(vm1);
+        assertEquals("1001", vm1.getCode());
+        assertEquals("string", vm1.getType());
+        assertEquals("/at", vm1.getPath());
+        assertEquals("/schemaPath", vm1.getSchemaPath());
+        assertArrayEquals(new String[]{"argument1"}, vm1.getArguments());
+        assertEquals("Test custom message Test custom message {0}", vm1.getMessage());
+
+        ValidationMessage vm2 = ValidationMessage.ofWithCustom(
+                "string", 
+                TestErrorMessageType.TEST_ERROR, 
+                format, 
+                "Custom Overridden Message", 
+                "/at", 
+                "/schemaPath", 
+                "argument1"
+        );
+        assertNotNull(vm2);
+        assertEquals("Custom Overridden Message", vm2.getMessage());
+
+        Map<String, Object> details = new HashMap<>();
+        ValidationMessage vm3 = ValidationMessage.of(
+                "string", 
+                TestErrorMessageType.TEST_ERROR, 
+                format, 
+                "/at", 
+                "/schemaPath", 
+                details
+        );
+        assertNotNull(vm3);
+        assertEquals(details, vm3.getDetails());
+    }
+
+    @Test
+    public void testBuilderFormattingWithoutCustomMessage() {
+        MessageFormat format = new MessageFormat("{0} must be valid {1}");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .type("type")
+                .code("100")
+                .path("/my/path")
+                .schemaPath("/my/schema")
+                .arguments("arg1")
+                .format(format)
+                .build();
+
+        assertEquals("/my/path must be valid arg1", msg.getMessage());
+    }
+
+    @Test
+    public void testBuilderNullArguments() {
+        MessageFormat format = new MessageFormat("{0} is invalid");
+        ValidationMessage msg = new ValidationMessage.Builder()
+                .path("/my/path")
+                .format(format)
+                .build();
+
+        assertEquals("/my/path is invalid", msg.getMessage());
+        assertNull(msg.getArguments());
+    }
+}
+###Test END##

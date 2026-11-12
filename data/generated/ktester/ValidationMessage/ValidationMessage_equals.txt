@@ -1,0 +1,137 @@
+```java
+package com.networknt.schema;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import java.util.HashMap;
+import java.util.Map;
+
+@ExtendWith(MockitoExtension.class)
+class ValidationMessage_equals_Test {
+
+    private ValidationMessage message1;
+
+    private ValidationMessage message2;
+
+    @BeforeEach
+    void setupBeforeEach() {
+        // Initialize standard instances for testing
+        message1 = new ValidationMessage();
+        message2 = new ValidationMessage();
+    }
+
+    @AfterEach
+    void teardownAfterEach() {
+        message1 = null;
+        message2 = null;
+    }
+
+    @Test
+    void testEquals_Self() {
+        // Returns true when comparing the object to itself.
+        assertTrue(message1.equals(message1));
+    }
+
+    @Test
+    void testEquals_Null() {
+        // Returns false when comparing the object to null.
+        assertFalse(message1.equals(null));
+    }
+
+    @Test
+    void testEquals_DifferentClass() {
+        // Returns false when comparing the object to an instance of a different class.
+        assertFalse(message1.equals("Some String"));
+    }
+
+    @Test
+    void testEquals_IdenticalFields() {
+        // Returns true when all fields of both ValidationMessage objects are equal.
+        message1.setType("type");
+        message1.setCode("code");
+        message1.setPath("path");
+        message1.setSchemaPath("schemaPath");
+        message1.setMessage("message");
+        message1.setArguments(new String[] { "arg1" });
+        Map<String, Object> details = new HashMap<>();
+        details.put("key", "value");
+        message1.setDetails(details);
+        message2.setType("type");
+        message2.setCode("code");
+        message2.setPath("path");
+        message2.setSchemaPath("schemaPath");
+        message2.setMessage("message");
+        message2.setArguments(new String[] { "arg1" });
+        Map<String, Object> details2 = new HashMap<>();
+        details2.put("key", "value");
+        message2.setDetails(details2);
+        assertTrue(message1.equals(message2));
+        assertTrue(message2.equals(message1));
+    }
+
+    @Test
+    void testEquals_DifferentType() {
+        // Returns false when the type fields do not match.
+        message1.setType("type1");
+        message2.setType("type2");
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentCode() {
+        // Returns false when the code fields do not match.
+        message1.setCode("code1");
+        message2.setCode("code2");
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentPath() {
+        // Returns false when the path fields do not match.
+        message1.setPath("path1");
+        message2.setPath("path2");
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentSchemaPath() {
+        // Returns false when the schemaPath fields do not match.
+        message1.setSchemaPath("schemaPath1");
+        message2.setSchemaPath("schemaPath2");
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentMessage() {
+        // Returns false when the message fields do not match.
+        message1.setMessage("message1");
+        message2.setMessage("message2");
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentArguments() {
+        // Returns false when the arguments arrays do not match.
+        message1.setArguments(new String[] { "arg1" });
+        message2.setArguments(new String[] { "arg2" });
+        assertFalse(message1.equals(message2));
+    }
+
+    @Test
+    void testEquals_DifferentDetails() {
+        // Returns false when the details maps do not match.
+        Map<String, Object> details1 = new HashMap<>();
+        details1.put("key", "value1");
+        message1.setDetails(details1);
+        Map<String, Object> details2 = new HashMap<>();
+        details2.put("key", "value2");
+        message2.setDetails(details2);
+        assertFalse(message1.equals(message2));
+    }
+}
+
+```
