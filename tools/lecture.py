@@ -125,8 +125,8 @@ def run_methods(classpath, methods, jacoco_exec=None, cwd=None):
 def line_coverage(jacoco_exec, classes_dir, source_dir):
     """{(package/File.java, line): covered?} for every executable line, from a JaCoCo exec file."""
     xml_path = pathlib.Path(jacoco_exec).with_suffix(".xml")
-    sh(f"java -jar {JACOCO_CLI} report {jacoco_exec} --classfiles {classes_dir} "
-       f"--sourcefiles {source_dir} --xml {xml_path}", quiet=True)
+    subprocess.run(["java", "-jar", JACOCO_CLI, "report", str(jacoco_exec), "--classfiles", str(classes_dir),
+                    "--sourcefiles", str(source_dir), "--xml", str(xml_path)], check=True, capture_output=True)
     lines = {}
     for pkg in ET.parse(xml_path).getroot().iter("package"):
         for sf in pkg.iter("sourcefile"):
@@ -422,3 +422,148 @@ def show_table(rows):
     except ImportError:
         for r in rows:
             print(r)
+
+
+# ------------------------------------------------------------------ survival over commits
+COMMITS = [("#4", "5a94df7e914b90c185fb573b6e7a6b3fb5f2460b", "path 리팩토링"),
+           ("#10", "7f1ec11b7a4b391577595e0d31d5825548c9a64f", "Draft 2020-12 지원, schema 조회 리팩토링"),
+           ("#151", "e880dd0aa16a52098aa6eea25d688275ac1590d9", "2.x 대규모 리팩토링")]
+
+
+def _artifact(jar):
+    """Artifact name of a jar file name without its version (jackson-core-2.15.3.jar -> jackson-core)."""
+    return re.sub(r"-\d.*$", "", os.path.basename(jar))
+
+
+def _slug(name):
+    """File-name-safe group name (Dev(scope) -> devscope, Ouédraogo -> ouedraogo)."""
+    import unicodedata
+    return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower())
+
+
+def merge_classpath(commit_cp, t_cp):
+    """The commit's dependencies, plus t's test-only dependencies the commit no longer declares."""
+    have = {_artifact(j) for j in commit_cp}
+    return list(commit_cp) + [j for j in t_cp if _artifact(j) not in have]
+
+
+def build_commit(label, sha):
+    """Check out a commit next to t (git worktree) and compile its production code."""
+    d = WORK / "commits" / label.strip("#")
+    if not (d / ".git").exists():
+        shutil.rmtree(d, ignore_errors=True)
+        sh(f"git -C {JSV} worktree add -f --detach {d} {sha}", quiet=True)
+    return d, build_production(d)
+
+
+def changed_lines(sha, file_rel):
+    """Line numbers (in the commit's version) that the commit added or modified in one file."""
+    out = sh(f"git -C {JSV} diff -U0 {sha}^ {sha} -- {file_rel}", quiet=True)
+    lines = set()
+    for m in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", out, re.M):
+        start, n = int(m[1]), int(m[2] if m[2] is not None else 1)
+        lines.update(range(start, start + n))
+    return lines
+
+
+def _key(m):
+    """A generated method is identified by its file and its name: two prompts can produce the same
+    class and method name in different files."""
+    return f"{m.get('dir', '')}|{m['method']}"
+
+
+def run_groups_at(commit_dir, commit_cp, groups, alive, t_cp, exec_dir):
+    """Run every group's alive methods at one commit, unchanged test sources from t.
+    Returns {group: {key: pass|fail|compile-fail}}. JaCoCo data goes to exec_dir/<group>.exec."""
+    prod = commit_dir / "target/classes"
+    cp = merge_classpath(commit_cp, t_cp)
+    exec_dir.mkdir(parents=True, exist_ok=True)
+    results = {}
+    for g, members in groups.items():
+        ex = exec_dir / f"{_slug(g)}.exec"
+        ex.unlink(missing_ok=True)
+        todo = [m for m in members if _key(m) in alive[g]]
+        res = {}
+        if g == "Dev(scope)":
+            dropped = compile_dev_tests(prod, cp, exec_dir / "dev-test-classes")
+            ok = [m for m in todo if m["method"].split("#")[0] not in dropped]
+            ran = run_methods([exec_dir / "dev-test-classes", prod] + cp, [m["method"] for m in ok], ex)
+            for m in todo:
+                res[_key(m)] = "compile-fail" if m not in ok else ran.get(m["method"], "fail")
+        else:
+            by_dir = {}
+            for m in todo:
+                by_dir.setdefault(m["dir"], []).append(m)
+            for d, ms in by_dir.items():
+                out = exec_dir / _slug(g) / pathlib.Path(d).name
+                shutil.rmtree(out, ignore_errors=True)
+                ok, _ = compile_java(pathlib.Path(d) / "src", out, [prod] + cp + TEST_LIBS)
+                ran = run_methods([out, prod] + cp + TEST_LIBS, [m["method"] for m in ms], ex) if ok else {}
+                for m in ms:
+                    res[_key(m)] = ran.get(m["method"], "fail") if ok else "compile-fail"
+        results[g] = res
+    return results
+
+
+def survive(groups, t_cp):
+    """Cumulative survival at the three commits: a method that breaks once stays broken.
+    Also changed-line coverage of the two target classes at each commit."""
+    alive = {g: {_key(m) for m in ms} for g, ms in groups.items()}
+    first_failure = {g: {} for g in groups}
+    survival = [{"commit": "t", "날짜": "2023-12-15", **{g: len(a) for g, a in alive.items()}}]
+    coverage = []
+    for label, sha, desc in COMMITS:
+        print(f"{label} {sha[:7]} {desc}: 빌드", end="", flush=True)
+        d, cp = build_commit(label, sha)
+        print(", 실행", end="", flush=True)
+        run_dir = WORK / "commits" / f"run-{label.strip('#')}"
+        res = run_groups_at(d, cp, groups, alive, t_cp, run_dir)
+        for g, r in res.items():
+            for k, st in r.items():
+                if st != "pass":
+                    alive[g].discard(k)
+                    first_failure[g].setdefault(k, (label, "컴파일 실패" if st == "compile-fail" else "실행 실패"))
+        date = sh(f"git -C {JSV} log -1 --format=%ad --date=short {sha}", quiet=True)
+        survival.append({"commit": label, "날짜": date, **{g: len(a) for g, a in alive.items()}})
+        # changed-line coverage: lines this commit added or modified in the target classes,
+        # executed by the tests that entered this commit (alive before it)
+        row, total = {"commit": label}, 0
+        hits = {g: 0 for g in groups}
+        for c in TARGETS:
+            rel = f"src/main/java/{PKG_DIR}/{c}.java"
+            if not (d / rel).exists():
+                continue
+            changed = changed_lines(sha, rel)
+            executable = None
+            for g in groups:
+                ex = run_dir / f"{_slug(g)}.exec"
+                lc = line_coverage(ex, d / "target/classes", d / "src/main/java") if ex.exists() else {}
+                mine = {ln: v for (f, ln), v in lc.items() if f == f"{PKG_DIR}/{c}.java"}
+                if executable is None and mine:
+                    executable = changed & set(mine)
+                hits[g] += sum(1 for ln in changed if mine.get(ln))
+            total += len(executable or set())
+        row["바뀐 실행 가능 줄"] = total
+        for g in groups:
+            row[g] = f"{hits[g]} ({hits[g] / total:.0%})" if total else "해당 없음"
+        coverage.append(row)
+        print(" 완료")
+    return survival, coverage, first_failure
+
+
+def survival_table(survival):
+    """Counts with percentages of the count at t."""
+    base = survival[0]
+    rows = []
+    for r in survival:
+        rows.append({k: (f"{v} ({v / base[k]:.0%})" if k not in ("commit", "날짜") and base[k] else v) for k, v in r.items()})
+    return rows
+
+
+def failure_table(first_failure, groups):
+    rows = []
+    for g in groups:
+        kinds = [k for _, k in first_failure[g].values()]
+        rows.append({"집단": g, "깨진 테스트": len(kinds), "컴파일 실패": kinds.count("컴파일 실패"),
+                     "실행 실패": kinds.count("실행 실패")})
+    return rows
