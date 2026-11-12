@@ -234,7 +234,7 @@ GEN = WORK / "generated"
 _last_call = [0.0]
 
 
-def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0, tries=5):
+def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_interval=5.0, tries=5, json_mode=False):
     """One Gemini call. Waits between calls to stay under the free-tier per-minute limit.
     Retries when the per-minute limit is hit (HTTP 429) or the model is busy (HTTP 5xx, e.g.
     "high demand"), waiting 30, 60, 90 ... seconds."""
@@ -248,7 +248,8 @@ def call_llm(client, model, prompt, temperature=0.7, max_tokens=16384, min_inter
         try:
             r = client.models.generate_content(
                 model=model, contents=prompt,
-                config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens))
+                config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens,
+                                                   response_mime_type="application/json" if json_mode else None))
             return r.text or ""
         except (errors.ClientError, errors.ServerError) as e:
             code = getattr(e, "code", None)

@@ -1,0 +1,61 @@
+You are tasked with creating a framework for a test class in Java. Now analyze the following information carefully:
+
+1. The method that needs to be tested and its parameters.
+2. The constructor of the target class and its parameters.
+3. Any dependencies or external resources used by the target class.
+
+Based on this analysis, complete the test class template in the provided structure:
+
+1. Initialize necessary fields and dependencies within setupBeforeAll() and setupBeforeEach().
+2. Handle any required cleanup in teardownAfterEach() and teardownAfterAll().
+3. Make sure not to invoke any private methods or fields of the target class and dependent class.
+4. Refer to the "given" phase in the existing test class for guidance.
+5. Add necessary import statements and ensure there are no syntax errors in the generated code.
+
+@input{focal method and target class}
+Here is the code of focal method, `{{method_name}}`, with the focal class `{{ class_name }}`:
+```Java
+{{ class_code }}
+```
+
+{% if context_dict | length > 0 %}
+@input{context information}
+{% for key, value in context_dict.items() %}
+{{ key }}: 
+{{ value }}
+{% endfor %}
+{% endif %}
+
+@input{test class template}
+```java
+package {{ package_name }};
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.*;
+import static org.mockito.Mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+// Add other imports if necessary
+
+@ExtendWith(MockitoExtension.class)
+class {{ class_name }} {
+    @BeforeAll
+    static void setupBeforeAll() {
+    }
+
+    @BeforeEach
+    void setupBeforeEach() {
+    }
+
+    @AfterEach
+    void teardownAfterEach() {
+    }
+
+    @AfterAll
+    static void teardownAfterAll() {
+    }
+}
+```
+
+@output{initial test class}: now consider the invoke examples output the code wrapped in a Markdown code block ```java at the beginning and ``` at the end.
