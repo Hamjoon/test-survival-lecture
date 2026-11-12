@@ -437,7 +437,8 @@ def show_table(rows):
     try:
         import pandas as pd
         from IPython.display import display
-        display(pd.DataFrame(rows).fillna(""))
+        with pd.option_context("display.max_colwidth", None):
+            display(pd.DataFrame(rows).fillna(""))
     except ImportError:
         for r in rows:
             print(r)
@@ -614,7 +615,8 @@ def removed_public_methods(label, class_name):
         m = sig.match(line)
         if m:
             if m[1] == "-":
-                removed.append((m[2], f"{m[2]}({m[3].strip()})"))
+                types = re.sub(r"\s+\w+\s*(?=,|$)", "", m[3].strip())      # drop parameter names
+                removed.append((m[2], f"{m[2]}({types})"))
             else:
                 added.add(m[2])
     return [full for name, full in removed if name not in added]
